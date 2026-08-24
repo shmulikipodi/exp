@@ -168,3 +168,133 @@ export async function gather(title: string, artist: string, isrc = ""): Promise<
     sources: [...mb.sources, ...wp.sources],
   };
 }
+
+/* ---------- artist and album, gathered separately ---------- */
+
+async function wikipediaOn(term: string, label: string): Promise<Evidence> {
+  const search = await json(
+    `${WP}?action=query&list=search&srsearch=${encodeURIComponent(term)}&srlimit=5&format=json&origin=*`,
+  );
+  const results = search?.query?.search ?? [];
+
+  // Searching "Pearl Jam band musician" happily returns "Better Man (Pearl Jam song)".
+  // The page about the subject is the one whose title IS the subject.
+  const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const want = norm(label);
+  const page =
+    results.find((r: any) => norm(r.title) === want) ??
+    results.find((r: any) => !/\bsong\b|\bsingle\b/i.test(r.title) && norm(r.title).includes(want)) ??
+    results[0];
+  if (!page?.title) return { text: "", sources: [] };
+
+  const extract = await json(
+    `${WP}?action=query&prop=extracts&explaintext=1&redirects=1&format=json&origin=*&titles=${encodeURIComponent(page.title)}`,
+  );
+  const text = (Object.values(extract?.query?.pages ?? {})[0] as any)?.extract ?? "";
+  if (!text) return { text: "", sources: [] };
+
+  return {
+    text: `${label} — Wikipedia: ${page.title}\n${text.slice(0, 9000)}`,
+    sources: [
+      [
+        `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, "_"))}`,
+        `Wikipedia — ${page.title}`,
+      ],
+    ],
+  };
+}
+
+/** Who the act is: formation, place, line-up. Not the song that happens to be playing. */
+export async function gatherArtist(artist: string): Promise<Evidence> {
+  const [mb, wp] = await Promise.all([
+    (async () => {
+      const found = await json(
+        `${MB}/artist/?query=artist:"${clean(artist)}"&fmt=json&limit=3`,
+      );
+      const hit = (found?.artists ?? []).find((a: any) => (a.score ?? 0) >= 90);
+      if (!hit?.id) return { text: "", sources: [] as [string, string][] };
+
+      await sleep(1100);
+      const full = await json(`${MB}/artist/${hit.id}?inc=artist-rels&fmt=json`);
+      if (!full) return { text: "", sources: [] as [string, string][] };
+
+      const members = (full.relations ?? [])
+        .filter((r: any) => r.type === "member of band" && r?.artist?.name)
+        .map((r: any) => {
+          const span = [r.begin, r.end].filter(Boolean).join("–");
+          return `  - ${r.artist.name}${(r.attributes ?? []).length ? ` (${r.attributes.join(", ")})` : ""}${span ? ` ${span}` : ""}`;
+        });
+
+      const body = [
+        `MusicBrainz artist: ${full.name}`,
+        full.type ? `Type: ${full.type}` : "",
+        full.area?.name ? `From: ${full.area.name}` : "",
+        full["life-span"]?.begin
+          ? `Active: ${full["life-span"].begin}${full["life-span"].ended ? `–${full["life-span"].end}` : " onwards"}`
+          : "",
+        members.length ? `Members on file:\n${[...new Set(members)].slice(0, 18).join("\n")}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      return {
+        text: body,
+        sources: [
+          [`https://musicbrainz.org/artist/${hit.id}`, `MusicBrainz — ${full.name}`] as [string, string],
+        ],
+      };
+    })().catch(() => ({ text: "", sources: [] as [string, string][] })),
+    wikipediaOn(`${artist} band musician`, artist).catch(() => ({
+      text: "",
+      sources: [] as [string, string][],
+    })),
+  ]);
+
+  return {
+    text: [mb.text, wp.text].filter(Boolean).join("\n\n---\n\n"),
+    sources: [...mb.sources, ...wp.sources],
+  };
+}
+
+/** The record as a whole: when it was made, who made it, what it did. */
+export async function gatherAlbum(album: string, artist: string): Promise<Evidence> {
+  const [mb, wp] = await Promise.all([
+    (async () => {
+      const found = await json(
+        `${MB}/release-group/?query=releasegroup:"${clean(album)}" AND artist:"${clean(artist)}"&fmt=json&limit=3`,
+      );
+      const hit = (found?.["release-groups"] ?? []).find((g: any) => (g.score ?? 0) >= 90);
+      if (!hit?.id) return { text: "", sources: [] as [string, string][] };
+
+      const body = [
+        `MusicBrainz release group: ${hit.title}`,
+        hit["primary-type"] ? `Type: ${hit["primary-type"]}` : "",
+        hit["first-release-date"] ? `First released: ${hit["first-release-date"]}` : "",
+        (hit["artist-credit"] ?? []).length
+          ? `Credited to: ${hit["artist-credit"].map((a: any) => a.name).join(", ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      return {
+        text: body,
+        sources: [
+          [`https://musicbrainz.org/release-group/${hit.id}`, `MusicBrainz — ${hit.title}`] as [
+            string,
+            string,
+          ],
+        ],
+      };
+    })().catch(() => ({ text: "", sources: [] as [string, string][] })),
+    wikipediaOn(`${album} ${artist} album`, album).catch(() => ({
+      text: "",
+      sources: [] as [string, string][],
+    })),
+  ]);
+
+  return {
+    text: [mb.text, wp.text].filter(Boolean).join("\n\n---\n\n"),
+    sources: [...mb.sources, ...wp.sources],
+  };
+}

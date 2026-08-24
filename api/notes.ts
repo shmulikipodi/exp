@@ -1,7 +1,7 @@
 // The product's opinion about what a liner note is. Edit the prompt here, not inline.
 
 import { ground } from "./providers.js";
-import { gather } from "./evidence.js";
+import { gather, gatherAlbum, gatherArtist } from "./evidence.js";
 import { keyPool, poolStatus } from "./keys.js";
 
 const MODEL = "gemini-3.6-flash";
@@ -57,6 +57,7 @@ type Body = {
   have?: { title: string; body: string }[];
   rejected?: string[];
   question?: string;
+  artist?: string;
   about?: { title: string; body: string } | null;
   title?: string;
   artists?: string[];
@@ -120,6 +121,35 @@ function parseNotes(text: string): any {
     return JSON.parse(candidate.slice(start, end + 1));
   }
 }
+
+const ARTIST_SYSTEM = `You are introducing a musician or band to someone who is
+listening to one of their records right now and wants to know who they are.
+
+Cover, in four to six sentences: when and where they formed, the line-up that matters
+and who does what, what they actually sound like, and what they did that made them worth
+knowing. Names, years, places, labels. Concrete over interpretive.
+
+- Do NOT describe the individual song that happens to be playing. That is not the
+  question. A sentence about one track is a failure.
+- No praise words. Influential, legendary, iconic, seminal and beloved are all banned.
+- If the evidence is thin and you are not confident, say so in a sentence rather than
+  inventing a history.
+
+Return ONLY a JSON object, no markdown fence: { "answer": "..." }`;
+
+const ALBUM_SYSTEM = `You are describing an album to someone playing a track from it.
+
+Cover, in four to six sentences: when and where it was recorded, who produced and
+engineered it, what the band was doing at that point, how it was received and what it
+did commercially, and where it sits in their catalogue. Names, years, studios, labels,
+numbers.
+
+- Do NOT describe the individual song that happens to be playing, beyond noting where it
+  sits on the record. The album is the subject.
+- No praise words. Influential, legendary, iconic, seminal and beloved are all banned.
+- If the evidence is thin, say so rather than inventing.
+
+Return ONLY a JSON object, no markdown fence: { "answer": "..." }`;
 
 const ASK_SYSTEM = `You are answering a question about a specific recording, for someone
 listening to it right now. You have the same evidence the liner notes were written from.
@@ -209,6 +239,47 @@ export default async function handler(req: any, res: any) {
       .join("\n");
 
     const recent = (body.recent ?? []).filter(Boolean);
+    // Artist and album are their own subjects, with their own evidence. Handing the
+    // model the song's evidence and asking about the band is why it answered about the
+    // song — everything in front of it was about one recording.
+    if (body.mode === "artist" || body.mode === "album") {
+      const isArtist = body.mode === "artist";
+      const who = (body.artist ?? artists[0]).trim();
+      const subject = await (isArtist ? gatherArtist(who) : gatherAlbum(body.album ?? "", who));
+
+      const base = isArtist ? ARTIST_SYSTEM : ALBUM_SYSTEM;
+      const sys = body.lang === "he" ? `${HEBREW_HEADER}${base}` : base;
+      const ask =
+        (isArtist ? `Artist: ${who}` : `Album: ${body.album}\nArtist: ${who}`) +
+        `\n\n` +
+        (subject.text
+          ? `EVIDENCE\n${subject.text}\n\nEND EVIDENCE\n\n`
+          : "No catalogue or encyclopedia entry was found. Be correspondingly careful.\n\n") +
+        (isArtist
+          ? `Write the introduction to ${who}.`
+          : `Write the description of ${body.album}.`);
+
+      let out = await ground(sys, ask, MODEL, userKeys);
+      let parsedOut = parseNotes(out.text);
+
+      if (body.lang === "he" && !looksHebrew(String(parsedOut.answer ?? ""))) {
+        out = await ground(
+          sys,
+          `${ask}\n\nYour previous attempt was in English. That was wrong. Write it in Hebrew.`,
+          MODEL,
+          userKeys,
+        );
+        parsedOut = parseNotes(out.text);
+      }
+
+      return res.end(
+        JSON.stringify({
+          answer: String(parsedOut.answer ?? out.text).trim(),
+          sources: [...subject.sources, ...out.urls].slice(0, 6),
+        }),
+      );
+    }
+
     const evidence = await gather(title, artists[0], (body.isrc ?? "").trim());
     const hebrew = body.lang === "he";
     const evidenceBlock = evidence.text

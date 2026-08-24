@@ -34,10 +34,8 @@ export const STRINGS = {
     reconnect: "Reconnect to enable controls",
     noDevice: "Open Spotify on a device first.",
     jumpTo: "Jump to this moment",
-    aboutArtist: (a: string, album: string) =>
-      `Tell me about ${a} — who they are, and where ${album} sits in their work.`,
-    aboutAlbum: (album: string) =>
-      `Tell me about the album ${album}: how it came together, and how this track sits on it.`,
+    artistHeading: (a: string) => `About ${a}`,
+    albumHeading: (album: string) => `About the album ${album}`,
     askAbout: "Ask",
     markWrong: "Wrong",
     askPlaceholder: "What do you want to know?",
@@ -114,10 +112,8 @@ export const STRINGS = {
     reconnect: "התחברו מחדש כדי להפעיל את הכפתורים",
     noDevice: "פתחו את Spotify במכשיר כלשהו קודם.",
     jumpTo: "לקפוץ לרגע הזה",
-    aboutArtist: (a: string, album: string) =>
-      `ספרו לי על ${a} — מי הם, ואיפה ${album} ממוקם בעבודה שלהם.`,
-    aboutAlbum: (album: string) =>
-      `ספרו לי על האלבום ${album}: איך הוא נוצר, ואיך השיר הזה יושב בתוכו.`,
+    artistHeading: (a: string) => `על ${a}`,
+    albumHeading: (album: string) => `על האלבום ${album}`,
     askAbout: "שאלה",
     markWrong: "שגוי",
     askPlaceholder: "מה תרצו לדעת?",

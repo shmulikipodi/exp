@@ -621,6 +621,49 @@ export default function App() {
     [current, persist],
   );
 
+  const askTopic = useCallback(
+    async (topic: "artist" | "album") => {
+      if (!current) return;
+      const who = viewing ? viewing.entry.artists.join(", ") : (playing?.artists ?? []).join(", ");
+      const album = viewing ? viewing.entry.album : (playing?.album ?? "");
+      const heading = topic === "artist" ? t.artistHeading(who) : t.albumHeading(album);
+
+      setBusy(topic);
+      setError("");
+      try {
+        const data = await post<{ answer: string }>({
+          ...subject(),
+          mode: topic,
+          artist: who,
+          album,
+          keys: liveKeys(),
+        });
+        persist({
+          ...current,
+          answers: [
+            // One answer per subject — asking twice replaces rather than stacks.
+            ...(current.answers ?? []).filter((x) => x.about !== `topic:${topic}`),
+            {
+              id: `${Date.now()}`,
+              question: heading,
+              about: `topic:${topic}`,
+              body: data.answer,
+            },
+          ],
+        });
+        requestAnimationFrame(() => {
+          const el = streamRef.current;
+          el?.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+        });
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setBusy("");
+      }
+    },
+    [current, subject, persist, viewing, playing, t],
+  );
+
   const ask = useCallback(
     async (question: string, about: Note | null) => {
       if (!current || !question.trim()) return;
@@ -853,18 +896,18 @@ export default function App() {
             <h1>{track.title}</h1>
             <p className="artist">
               <button
-                className={`link${busy === "general" ? " busy" : ""}`}
+                className={`link${busy === "artist" ? " busy" : ""}`}
                 disabled={!activeNotes || busy !== ""}
-                onClick={() => ask(t.aboutArtist(track.artists.join(", "), track.album), null)}
+                onClick={() => askTopic("artist")}
               >
                 {track.artists.join(", ")}
               </button>
             </p>
             <p className="album">
               <button
-                className={`link${busy === "general" ? " busy" : ""}`}
+                className={`link${busy === "album" ? " busy" : ""}`}
                 disabled={!activeNotes || busy !== ""}
-                onClick={() => ask(t.aboutAlbum(track.album), null)}
+                onClick={() => askTopic("album")}
               >
                 {track.album}
               </button>
@@ -1026,9 +1069,9 @@ export default function App() {
                 ))}
 
                 {(activeNotes.answers ?? [])
-                  .filter((a) => a.about === null)
+                  .filter((a) => a.about === null || String(a.about).startsWith("topic:"))
                   .map((a) => (
-                    <div className="answer standalone" key={a.id}>
+                    <div className={`answer standalone${String(a.about).startsWith("topic:") ? " topic" : ""}`} key={a.id}>
                       <p className="q">{a.question}</p>
                       <p>{a.body}</p>
                     </div>

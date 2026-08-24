@@ -414,6 +414,24 @@ button.ghost:hover { color: var(--dim); background: none; }
 }
 [dir="rtl"] .answer { border-radius: 10px 0 0 10px; }
 .answer.standalone { margin-bottom: 12vh; }
+
+/* An artist or album answer is its own subject, not a follow-up — it gets a heading
+   rather than a quoted question, and its own colour. */
+.answer.topic {
+  background: rgba(243, 237, 227, 0.05);
+  border-inline-start-width: 3px;
+  padding: 18px 20px;
+}
+.answer.topic .q {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+.answer.topic p { font-size: 16px; }
 .answer .q {
   margin: 0 0 8px;
   font: 600 12px var(--mono);
