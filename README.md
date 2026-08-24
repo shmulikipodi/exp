@@ -142,6 +142,25 @@ That reports how many keys it found, the last four characters of each, whether e
 is valid, and whether it is currently cooling off. `valid: true` means the key works;
 it does **not** mean it has quota left.
 
+### A second provider
+
+Gemini's free tier is 20 requests per day, per project, per model. Groq's is far more
+generous and its `compound` model carries its own web search, which is worth having
+while Gemini's grounding is spent.
+
+Get keys at [console.groq.com](https://console.groq.com/keys) — free, no card — and add
+them the same way as Gemini keys:
+
+```
+GROQ_API_KEY=
+GROQ_API_KEY_2=
+GROQ_API_KEY_3=
+```
+
+Gemini is tried first and Groq catches what it drops, so the two allowances add up.
+`GROQ_FIRST=1` reverses that, which is what you want if you would rather have live web
+search than Gemini's prose.
+
 ### Automatic switching
 
 `api/keys.ts` rotates across the pool and switches keys by itself. When a key reports

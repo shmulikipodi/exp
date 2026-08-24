@@ -71,6 +71,10 @@ const TICK_MS = 250;
 // Spotify is only asked as often as it's likely to have something new to say.
 // Mid-song nothing changes, so we idle; near the end of a track a change is
 // imminent, so we watch closely and catch it inside a second.
+// Long enough that skipping through a queue costs nothing, short enough that settling
+// on a track feels immediate.
+const SETTLE_MS = 2500;
+
 const POLL_IDLE_MS = 4000;
 const POLL_PLAYING_MS = 3000;
 const POLL_ENDING_MS = 900;
@@ -101,11 +105,12 @@ const DEMO_TRACK: Playing = {
   isPlaying: true,
 };
 
-async function post<T>(payload: Record<string, unknown>): Promise<T> {
+async function post<T>(payload: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
   const res = await fetch("/api/notes", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
+    signal,
   });
   // A cold start or a crashed function answers with an HTML error page, and
   // "Unexpected token 'A'" is a useless thing to show a reader.
@@ -300,6 +305,8 @@ export default function App() {
     if (DEMO || !notes || !playing) return;
     let alive = true;
 
+    // Only worth writing the next track's notes once this one has been left playing.
+    const timer = setTimeout(() => {
     (async () => {
       const up = await queueNext().catch(() => null);
       if (!alive || !up?.id) return;
@@ -345,9 +352,11 @@ export default function App() {
         false, // not heard yet — it is only next in the queue
       );
     })();
+    }, 20_000);
 
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
   }, [notes, playing?.id, lang]);
 
@@ -391,6 +400,10 @@ export default function App() {
     setNotes(null);
     setLoading(true);
 
+    const abort = new AbortController();
+    let settled = false;
+
+    const timer = setTimeout(() => {
     (async () => {
       const stored = pruneAnswers((await loadNotes(playing.id, lang)) as Notes | null, lang);
       if (stored && matchesLang(stored, lang)) {
@@ -430,9 +443,10 @@ export default function App() {
         lang,
         wide,
         keys: liveKeys(),
-      });
+      }, abort.signal);
     })()
       .then((data) => {
+        settled = true;
         const fresh = !cache.current.has(key);
         cache.current.set(key, data);
         setNotes(data);
@@ -452,8 +466,22 @@ export default function App() {
           data,
         ).then(() => setHistoryCount(readHistory().length));
       })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .catch((e) => {
+        if (abort.signal.aborted) return; // the track changed; this answer is stale
+        settled = true;
+        setError(e.message);
+      })
+      .finally(() => {
+        if (!abort.signal.aborted) setLoading(false);
+      });
+    }, SETTLE_MS);
+
+    return () => {
+      clearTimeout(timer);
+      abort.abort();
+      // Nothing was written for this track, so it must not look as though it was.
+      if (!settled) fetchedFor.current = "";
+    };
   }, [playing?.id, lang, reload, wide]);
 
   // Reading from history reuses the whole player view — same sleeve, same notes, just
@@ -1110,9 +1138,11 @@ export default function App() {
                 )}
 
                 {shown.map((n, i) => {
-                  const at = times[activeNotes.notes.indexOf(n)];
+                  // Only a note that names a moment is a place you can go. A note with
+                  // no moment schedules at 0, which is "available from the start" — not
+                  // "the song starts here".
                   const seekable =
-                    !viewing && canControl !== false && track.durationMs > 0 && at !== undefined;
+                    n.at !== null && !viewing && canControl !== false && track.durationMs > 0;
 
                   return (
                   <article
@@ -1122,7 +1152,7 @@ export default function App() {
                       // The buttons inside a note do their own thing.
                       if ((e.target as HTMLElement).closest("button, a, input, form")) return;
                       if (!seekable) return;
-                      const to = at * track.durationMs;
+                      const to = n.at! * track.durationMs;
                       run(() => seek(to), () => setProgress(to));
                     }}
                   >

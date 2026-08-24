@@ -2,7 +2,7 @@
 // actually has quota; Groq's compound models carry web search on the free tier and
 // are the fallback. Set GROQ_API_KEY to force Groq.
 
-import { withKey } from "./keys.js";
+import { keyPool, withKey } from "./keys.js";
 
 export type Grounded = {
   text: string;
@@ -26,8 +26,16 @@ const GEMINI = (m: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
 const GROQ = "https://api.groq.com/openai/v1/chat/completions";
 
+/**
+ * Groq is a second pool rather than a replacement. It used to be all-or-nothing —
+ * setting a Groq key meant Gemini was never tried — which threw away half the daily
+ * allowance. Now Gemini goes first and Groq catches what it drops, so the two add up.
+ *
+ * Set GROQ_FIRST=1 to reverse the order; Groq's compound model carries its own web
+ * search, which is worth having while Gemini's grounding is out of quota.
+ */
 export function provider(): "groq" | "gemini" {
-  return process.env.GROQ_API_KEY ? "groq" : "gemini";
+  return process.env.GROQ_FIRST === "1" ? "groq" : "gemini";
 }
 
 /** Pull every http(s) URL out of an arbitrary response shape. */
@@ -203,7 +211,27 @@ export async function ground(
   geminiModel: string,
   extra: string[] = [],
 ): Promise<Grounded> {
-  return provider() === "groq"
-    ? groqCall(system, user)
-    : geminiCall(system, user, geminiModel, extra);
+  const hasGroq = keyPool("GROQ").length > 0;
+  const groqFirst = provider() === "groq" && hasGroq;
+
+  const first = groqFirst
+    ? () => groqCall(system, user)
+    : () => geminiCall(system, user, geminiModel, extra);
+  const second = groqFirst
+    ? () => geminiCall(system, user, geminiModel, extra)
+    : () => groqCall(system, user);
+
+  try {
+    return await first();
+  } catch (err) {
+    const message = (err as Error).message;
+    // Only a spent allowance is worth crossing to the other provider for.
+    const spent = /^QUOTA:|out of quota|No GEMINI key|No GROQ key/i.test(message);
+    if (!spent) throw err;
+
+    const alternative = groqFirst ? keyPool("GEMINI", extra).length > 0 : hasGroq;
+    if (!alternative) throw err;
+
+    return await second();
+  }
 }
