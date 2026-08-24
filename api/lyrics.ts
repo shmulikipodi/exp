@@ -18,6 +18,57 @@ function parseLrc(lrc: string): Line[] {
   return lines.sort((a, b) => a.at - b.at);
 }
 
+export type Lyrics = { found: boolean; synced: boolean; lines: Line[]; plain: string };
+
+const EMPTY: Lyrics = { found: false, synced: false, lines: [], plain: "" };
+
+const cache = new Map<string, { at: number; value: Lyrics }>();
+const TTL_MS = 30 * 60_000;
+
+/** Shared with the notes pipeline, which uses the timestamps to place a note exactly. */
+export async function fetchLyrics(
+  track: string,
+  artist: string,
+  album = "",
+  durationMs = 0,
+): Promise<Lyrics> {
+  const key = `${artist}|${track}|${album}|${durationMs}`.toLowerCase();
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
+
+  const params = new URLSearchParams({ track_name: track, artist_name: artist });
+  if (album) params.set("album_name", album);
+  if (durationMs > 0) params.set("duration", String(Math.round(durationMs / 1000)));
+
+  let value = EMPTY;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(`${LRCLIB}?${params}`, {
+      headers: { "user-agent": "exp/1.0 ( https://github.com/ )" },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (res.ok) {
+      const data: any = await res.json();
+      const lines = data?.syncedLyrics ? parseLrc(String(data.syncedLyrics)) : [];
+      value = {
+        found: Boolean(data?.plainLyrics || lines.length),
+        synced: lines.length > 0,
+        lines,
+        plain: String(data?.plainLyrics ?? ""),
+      };
+    }
+  } catch {
+    // No lyrics filed, or the service is down. Neither is worth failing a request over.
+  }
+
+  cache.set(key, { at: Date.now(), value });
+  if (cache.size > 60) cache.delete(cache.keys().next().value as string);
+  return value;
+}
+
 export default async function handler(req: any, res: any) {
   res.setHeader("content-type", "application/json");
 
@@ -30,35 +81,13 @@ export default async function handler(req: any, res: any) {
       return res.end(JSON.stringify({ error: "title and artist required" }));
     }
 
-    const params = new URLSearchParams({ track_name: track, artist_name: artist });
-    const album = (q.get("album") ?? "").trim();
-    if (album) params.set("album_name", album);
-    const duration = Number(q.get("duration") ?? 0);
-    if (duration > 0) params.set("duration", String(Math.round(duration / 1000)));
-
-    const upstream = await fetch(`${LRCLIB}?${params}`, {
-      headers: { "user-agent": "exp/1.0 ( https://github.com/ )" },
-    });
-
-    // 404 is the ordinary answer for a track nobody has transcribed.
-    if (upstream.status === 404) return res.end(JSON.stringify({ lines: [], plain: "", found: false }));
-    if (!upstream.ok) {
-      res.statusCode = 502;
-      return res.end(JSON.stringify({ error: `Lyrics service returned ${upstream.status}` }));
-    }
-
-    const data: any = await upstream.json();
-    const lines = data?.syncedLyrics ? parseLrc(String(data.syncedLyrics)) : [];
-
-    return res.end(
-      JSON.stringify({
-        found: Boolean(data?.plainLyrics || lines.length),
-        synced: lines.length > 0,
-        lines,
-        plain: String(data?.plainLyrics ?? ""),
-        source: "LRCLIB",
-      }),
+    const lyrics = await fetchLyrics(
+      track,
+      artist,
+      (q.get("album") ?? "").trim(),
+      Number(q.get("duration") ?? 0),
     );
+    return res.end(JSON.stringify({ ...lyrics, source: "LRCLIB" }));
   } catch (err) {
     res.statusCode = 500;
     res.end(JSON.stringify({ error: (err as Error).message }));

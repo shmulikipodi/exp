@@ -3,6 +3,7 @@
 import { ground } from "./providers.js";
 import { gather, gatherAlbum, gatherArtist } from "./evidence.js";
 import { keyPool, poolStatus } from "./keys.js";
+import { fetchLyrics } from "./lyrics.js";
 
 const MODEL = "gemini-3.6-flash";
 
@@ -48,7 +49,8 @@ Note kinds, pick whichever the evidence actually supports:
                evidence may list related recordings outright; those are the good ones
   version    — the listener is on an edit, remaster or live take rather than the
                original, and something about it differs
-  lyric      — what a specific line actually refers to, when that is documented and not guessed
+  lyric      — what a specific line actually refers to, when that is documented and not
+               guessed. If the lyrics are given below, quote the line you mean
   moment     — a thing audible at a specific point in the recording
   afterlife  — what happened to it after release: lawsuits, chart facts, covers, reuse
 
@@ -414,6 +416,26 @@ export default async function handler(req: any, res: any) {
       body.durationMs ?? 0,
     );
     const hebrew = body.lang === "he";
+
+    // Synced lyrics are the only timing in the whole pipeline that is actually
+    // measured. A note about a line can take that line's real timestamp instead of the
+    // model's estimate, which is the difference between a dot you can trust and a dot
+    // you sit waiting at.
+    const lyrics = await fetchLyrics(title, artists[0], body.album ?? "", body.durationMs ?? 0);
+    const lyricBlock = lyrics.found
+      ? lyrics.synced
+        ? `LYRICS, with the time each line is sung. When a note is about a line, or about ` +
+          `something that happens as a line is sung, use that line's timestamp and set ` +
+          `atBasis to "documented" — these times are measured, not guessed.\n` +
+          lyrics.lines
+            .map(
+              (l) =>
+                `[${Math.floor(l.at / 60)}:${String(Math.floor(l.at % 60)).padStart(2, "0")}] ${l.text}`,
+            )
+            .join("\n") +
+          `\n\nEND LYRICS\n\n`
+        : `LYRICS (no timings available)\n${lyrics.plain.slice(0, 3000)}\n\nEND LYRICS\n\n`
+      : "";
     const evidenceBlock = evidence.text
       ? `EVIDENCE\n${evidence.text}\n\nEND EVIDENCE\n\n`
       : "No catalogue or encyclopedia entry was found for this recording. Be correspondingly careful.\n\n";
@@ -444,7 +466,7 @@ export default async function handler(req: any, res: any) {
         (albumEv.text ? `EVIDENCE ABOUT THE ALBUM\n${albumEv.text}\n\nEND\n\n` : "");
 
       const asked =
-        `${facts}\n\n${wide}` +
+        `${facts}\n\n${wide}${lyricBlock}` +
         (body.about
           ? `The reader is asking about this note:\n"${body.about.title}" — ${body.about.body}\n\n`
           : "") +
@@ -506,6 +528,7 @@ export default async function handler(req: any, res: any) {
         ? `Played just before this, most recent first:\n${recent.map((r) => `- ${r}`).join("\n")}\n\n`
         : "No listening history yet this session — set thread to null.\n\n") +
       evidenceBlock +
+      lyricBlock +
       wideBlock +
       (rejected.length
         ? `The reader marked these earlier notes as WRONG. Do not repeat them, and do not ` +
