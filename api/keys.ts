@@ -14,6 +14,11 @@ const cooling = new Map<string, number>();
 const MIN_COOLDOWN_MS = 30_000;
 const MAX_COOLDOWN_MS = 20 * 60_000;
 const DEFAULT_COOLDOWN_MS = 90_000;
+// The free tier's cap is per minute, not per day. When every key is inside that
+// window the right answer is to wait it out — the caller is already waiting twenty
+// seconds for the model, and a short pause beats an error telling them to go and
+// create Google Cloud projects they don't need.
+const RATE_WAIT_MAX_MS = 50_000;
 
 export function keyPool(prefix = "GEMINI", extra: string[] = []): string[] {
   const keys: string[] = extra.map((k) => k.trim()).filter(Boolean);
@@ -71,6 +76,7 @@ export async function withKey<T>(
   prefix: string,
   fn: (key: string) => Promise<T>,
   extra: string[] = [],
+  mayWait = true,
 ): Promise<T> {
   const keys = keyPool(prefix, extra);
   if (keys.length === 0) {
@@ -112,6 +118,24 @@ export async function withKey<T>(
         break; // spent — switch to the next key
       }
     }
+  }
+
+  // Every key is spent. If they are all inside a short cooldown this is the per-minute
+  // cap rather than real exhaustion, so wait for the first one to come back.
+  const waits = keys.map((k) => (cooling.get(k) ?? 0) - Date.now());
+  const allCooling = waits.every((w) => w > 0);
+  const soonest = allCooling ? Math.min(...waits) : 0;
+
+  if (mayWait && soonest > 0 && soonest <= RATE_WAIT_MAX_MS) {
+    await sleep(soonest + 750);
+    return withKey(prefix, fn, extra, false);
+  }
+
+  if (soonest > 0) {
+    throw new Error(
+      `Rate limited on all ${keys.length} key(s) — the free tier allows 20 requests a ` +
+        `minute per project. Try again in ${Math.ceil(soonest / 1000)}s.`,
+    );
   }
 
   throw new Error(

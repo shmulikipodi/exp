@@ -67,7 +67,7 @@ export const STRINGS = {
     keysCooling: (s: number) => `out of quota, retrying in ${s}s`,
     keysButton: (n: number) => (n === 0 ? "keys" : `keys · ${n}`),
     quota:
-      "The notes engine is out of quota for today. Add a Gemini API key from a new Google Cloud project — quota is counted per project, not per key.",
+      "Too many requests in the last minute — the free tier allows 20 a minute per Google Cloud project. It will come back on its own shortly; adding a key from another project raises the ceiling.",
     noEvidence:
       "No catalogue entry and no live search for this one — written from model memory, so check anything surprising.",
     kinds: {
@@ -143,7 +143,7 @@ export const STRINGS = {
     keysCooling: (s: number) => `נגמרה המכסה, ניסיון חוזר בעוד ${s} שניות`,
     keysButton: (n: number) => (n === 0 ? "מפתחות" : `מפתחות · ${n}`),
     quota:
-      "מנוע ההערות מיצה את המכסה להיום. הוסיפו מפתח Gemini מפרויקט Google Cloud חדש — המכסה נספרת לפי פרויקט, לא לפי מפתח.",
+      "יותר מדי בקשות בדקה האחרונה — המכסה החינמית מאפשרת 20 בקשות לדקה לכל פרויקט Google Cloud. זה יחזור מעצמו בקרוב; מפתח מפרויקט נוסף מרים את התקרה.",
     noEvidence:
       "אין רישום בקטלוג ואין חיפוש חי לשיר הזה — נכתב מזיכרון המודל, אז כדאי לבדוק כל דבר מפתיע.",
     kinds: {
