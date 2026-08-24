@@ -133,10 +133,24 @@ listening to it right now. You have the same evidence the liner notes were writt
 
 Return ONLY a JSON object, no markdown fence: { "answer": "..." }`;
 
-const HEBREW_RULE = `\n\nWrite every human-readable string in Hebrew, in the same plain,
-specific register. Keep the JSON keys exactly as specified, in English. Leave names of
-people, bands, songs, albums, studios and labels in their original Latin script rather
-than transliterating them.`;
+// This goes at the TOP of the prompt, not the bottom. All the evidence is in English,
+// which pulls hard towards answering in English — a language rule tacked on after four
+// hundred words of instructions gets dropped, especially by the lighter models.
+const HEBREW_HEADER = `WRITE IN HEBREW.
+
+Every human-readable string you produce — headline, note titles, note bodies, thread,
+answers — must be written in Hebrew, in a plain and specific register. JSON keys and the
+"kind" values stay in English. Names of people, bands, songs, albums, studios and labels
+stay in their original Latin script; do not transliterate them.
+
+The evidence below is in English. That is not a reason to answer in English.
+
+`;
+
+/** Did the model actually do it? Cheap, and the only way to know. */
+function looksHebrew(text: string): boolean {
+  return /[\u0590-\u05FF]/.test(text);
+}
 
 export default async function handler(req: any, res: any) {
   res.setHeader("content-type", "application/json");
@@ -207,13 +221,19 @@ export default async function handler(req: any, res: any) {
           : "") +
         `Question: ${question}`;
 
-      const answered = await ground(
-        hebrew ? `${ASK_SYSTEM}${HEBREW_RULE}` : ASK_SYSTEM,
-        asked,
-        MODEL,
-        userKeys,
-      );
-      const parsedAnswer = parseNotes(answered.text);
+      const askSystem = hebrew ? `${HEBREW_HEADER}${ASK_SYSTEM}` : ASK_SYSTEM;
+      let answered = await ground(askSystem, asked, MODEL, userKeys);
+      let parsedAnswer = parseNotes(answered.text);
+
+      if (hebrew && !looksHebrew(String(parsedAnswer.answer ?? ""))) {
+        answered = await ground(
+          askSystem,
+          `${asked}\n\nYour previous attempt was written in English. That was wrong. Answer in Hebrew.`,
+          MODEL,
+          userKeys,
+        );
+        parsedAnswer = parseNotes(answered.text);
+      }
       return res.end(
         JSON.stringify({
           answer: String(parsedAnswer.answer ?? answered.text).trim(),
@@ -245,17 +265,22 @@ export default async function handler(req: any, res: any) {
         : `Write the notes.`);
 
     // Hebrew is a rewrite, not a translation pass — the model writes in it directly.
-    const system =
-      body.lang === "he"
-        ? `${SYSTEM}\n\nWrite every human-readable string — headline, note titles, note bodies,
-and thread — in Hebrew, in the same plain, specific register. Keep the JSON keys and the
-"kind" values exactly as specified, in English. Leave names of people, bands, songs,
-albums, studios and labels in their original Latin script rather than transliterating
-them.`
-        : SYSTEM;
+    const system = hebrew ? `${HEBREW_HEADER}${SYSTEM}` : SYSTEM;
+    const askedIn = hebrew ? `${user}\n\nWrite all of it in Hebrew.` : user;
 
-    const grounded = await ground(system, user, MODEL, userKeys);
-    const parsed = parseNotes(grounded.text);
+    let grounded = await ground(system, askedIn, MODEL, userKeys);
+    let parsed = parseNotes(grounded.text);
+
+    // Verify rather than hope. One retry, with the instruction made blunt.
+    if (hebrew && !looksHebrew(String(parsed.headline ?? "") + JSON.stringify(parsed.notes ?? []))) {
+      grounded = await ground(
+        `${HEBREW_HEADER}${SYSTEM}`,
+        `${askedIn}\n\nYour previous attempt was written in English. That was wrong. Write it in Hebrew.`,
+        MODEL,
+        userKeys,
+      );
+      parsed = parseNotes(grounded.text);
+    }
 
     const notes = (Array.isArray(parsed.notes) ? parsed.notes : [])
       .filter((n: any) => n && typeof n.body === "string" && n.body.trim())
