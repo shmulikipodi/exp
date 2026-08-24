@@ -21,6 +21,8 @@ import {
 import { STRINGS, storedLang, storeLang, type Lang } from "./i18n";
 import { accentFrom } from "./palette";
 import { Keys, liveKeys } from "./Keys";
+import { History } from "./History";
+import { history as readHistory, loadNotes, recentStamps, saveNotes, type Stored } from "./store";
 import "./App.css";
 
 type Note = { kind: string; at: number | null; title: string; body: string };
@@ -129,6 +131,9 @@ export default function App() {
   // null = we have not tried to control playback yet. false = this account can't.
   const [canControl, setCanControl] = useState<boolean | null>(null);
   const [controlNote, setControlNote] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyCount, setHistoryCount] = useState(() => readHistory().length);
+  const [viewing, setViewing] = useState<{ entry: Omit<Stored, "notes">; notes: Notes } | null>(null);
 
   const history = useRef<string[]>([]);
   const fetchedFor = useRef<string>("");
@@ -215,6 +220,13 @@ export default function App() {
   // from what Spotify already knows you were listening to.
   useEffect(() => {
     if (!connected || DEMO || history.current.length > 0) return;
+
+    const read = recentStamps();
+    if (read.length > 0) {
+      history.current = read;
+      return;
+    }
+
     let alive = true;
     recentlyPlayed()
       .then((recent) => {
@@ -260,7 +272,20 @@ export default function App() {
         keys: liveKeys(),
       }).catch(() => null);
 
-      if (alive && data) cache.current.set(key, data);
+      if (!alive || !data) return;
+      cache.current.set(key, data);
+      saveNotes(
+        {
+          id: up.id,
+          lang,
+          title: up.title,
+          artists: up.artists,
+          album: up.album,
+          art: (up as { art?: string }).art ?? "",
+          at: Date.now(),
+        },
+        data,
+      );
     })();
 
     return () => {
@@ -290,8 +315,9 @@ export default function App() {
     const recent = history.current.slice(0, 5);
     history.current = [stamp, ...history.current.filter((h) => h !== stamp)].slice(0, 8);
 
-    const cached = cache.current.get(key);
+    const cached = cache.current.get(key) ?? (loadNotes(playing.id, lang) as Notes | null);
     if (cached) {
+      cache.current.set(key, cached);
       setNotes(cached);
       return;
     }
@@ -322,16 +348,54 @@ export default function App() {
       .then((data) => {
         cache.current.set(key, data);
         setNotes(data);
+        saveNotes(
+          {
+            id: playing.id,
+            lang,
+            title: playing.title,
+            artists: playing.artists,
+            album: playing.album,
+            art: playing.art,
+            at: Date.now(),
+          },
+          data,
+        );
+        setHistoryCount(readHistory().length);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [playing?.id, lang, reload]);
 
-  const fraction = playing?.durationMs ? Math.min(1, progress / playing.durationMs) : 0;
-  const times = useMemo(() => (notes ? schedule(notes.notes) : []), [notes]);
-  const shown = notes ? notes.notes.filter((_, i) => revealAll || times[i] <= fraction) : [];
-  const pending = notes ? notes.notes.length - shown.length : 0;
-  const nextAt = notes ? times.filter((t) => t > fraction).sort((a, b) => a - b)[0] : undefined;
+  // Reading from history reuses the whole player view — same sleeve, same notes, just
+  // a track that isn't playing, with everything already revealed.
+  const track: Playing | null = viewing
+    ? {
+        id: viewing.entry.id,
+        isrc: "",
+        albumId: "",
+        artistId: "",
+        title: viewing.entry.title,
+        artists: viewing.entry.artists,
+        album: viewing.entry.album,
+        released: "",
+        art: viewing.entry.art,
+        durationMs: 0,
+        progressMs: 0,
+        isPlaying: false,
+      }
+    : playing;
+  const activeNotes = viewing ? viewing.notes : notes;
+  const openAll = revealAll || Boolean(viewing);
+
+  const fraction = track?.durationMs ? Math.min(1, progress / track.durationMs) : 0;
+  const times = useMemo(() => (activeNotes ? schedule(activeNotes.notes) : []), [activeNotes]);
+  const shown = activeNotes
+    ? activeNotes.notes.filter((_, i) => openAll || times[i] <= fraction)
+    : [];
+  const pending = activeNotes ? activeNotes.notes.length - shown.length : 0;
+  const nextAt = activeNotes
+    ? times.filter((t) => t > fraction).sort((a, b) => a - b)[0]
+    : undefined;
 
   // Apple-Music-lyrics focus: whatever sits nearest the middle of the column is sharp,
   // everything else softens with distance. Written straight to the DOM because this
@@ -407,12 +471,12 @@ export default function App() {
       window.removeEventListener("resize", apply);
       cancelAnimationFrame(frame);
     };
-  }, [notes, shown.length]);
+  }, [activeNotes, shown.length]);
 
   // A newly revealed note walks itself into focus, unless the reader is browsing.
   useEffect(() => {
     const el = streamRef.current;
-    if (!el || shown.length === 0 || revealAll) return;
+    if (!el || shown.length === 0 || openAll) return;
     if (Date.now() - lastManual.current < 8000) return;
     // On a phone the sleeve owns the first screen. Auto-centring would scroll straight
     // past it and collapse the picture before it has been seen, so it waits until the
@@ -472,10 +536,25 @@ export default function App() {
     return (
       <main className="setup">
         <div className="controls">
+        <button onClick={() => setShowHistory(true)}>{t.historyButton(historyCount)}</button>
         <button onClick={() => setShowKeys(true)}>{t.keysButton(keyCount)}</button>
         <button onClick={toggleLang}>{t.other}</button>
       </div>
       {showKeys && <Keys t={t} onClose={closeKeys} />}
+      {showHistory && (
+        <History
+          t={t}
+          onOpen={(entry, notes) => {
+            setViewing({ entry, notes: notes as Notes });
+            setShowHistory(false);
+            streamRef.current?.scrollTo({ top: 0 });
+          }}
+          onClose={() => {
+            setShowHistory(false);
+            setHistoryCount(readHistory().length);
+          }}
+        />
+      )}
         <h1>exp</h1>
         <p>{t.tagline}</p>
         <ol>
@@ -508,10 +587,25 @@ export default function App() {
     return (
       <main className="setup">
         <div className="controls">
+        <button onClick={() => setShowHistory(true)}>{t.historyButton(historyCount)}</button>
         <button onClick={() => setShowKeys(true)}>{t.keysButton(keyCount)}</button>
         <button onClick={toggleLang}>{t.other}</button>
       </div>
       {showKeys && <Keys t={t} onClose={closeKeys} />}
+      {showHistory && (
+        <History
+          t={t}
+          onOpen={(entry, notes) => {
+            setViewing({ entry, notes: notes as Notes });
+            setShowHistory(false);
+            streamRef.current?.scrollTo({ top: 0 });
+          }}
+          onClose={() => {
+            setShowHistory(false);
+            setHistoryCount(readHistory().length);
+          }}
+        />
+      )}
         <h1>exp</h1>
         <p>{t.connectPrompt}</p>
         {error && <p className="error">{shownError}</p>}
@@ -534,13 +628,28 @@ export default function App() {
   return (
     <main className="app stage" style={accent ? ({ "--h": accent } as React.CSSProperties) : undefined}>
       <div className="controls">
+        <button onClick={() => setShowHistory(true)}>{t.historyButton(historyCount)}</button>
         <button onClick={() => setShowKeys(true)}>{t.keysButton(keyCount)}</button>
         <button onClick={toggleLang}>{t.other}</button>
       </div>
       {showKeys && <Keys t={t} onClose={closeKeys} />}
-      {playing?.art && <div className="wash" style={{ backgroundImage: `url(${playing.art})` }} />}
+      {showHistory && (
+        <History
+          t={t}
+          onOpen={(entry, notes) => {
+            setViewing({ entry, notes: notes as Notes });
+            setShowHistory(false);
+            streamRef.current?.scrollTo({ top: 0 });
+          }}
+          onClose={() => {
+            setShowHistory(false);
+            setHistoryCount(readHistory().length);
+          }}
+        />
+      )}
+      {track?.art && <div className="wash" style={{ backgroundImage: `url(${track.art})` }} />}
 
-      {!playing && (
+      {!track && (
         <div className="idle">
           <h2>{t.idleTitle}</h2>
           <p>{t.idleBody}</p>
@@ -548,13 +657,13 @@ export default function App() {
         </div>
       )}
 
-      {playing && (
+      {track && (
         <>
           <section className="sleeve">
-            {playing.art && (
+            {track.art && (
               <img
                 className="cover"
-                src={playing.art}
+                src={track.art}
                 alt=""
                 // Must match the crossOrigin of the palette sampler's request, or the
                 // browser caches a non-CORS copy and tainting kills colour extraction.
@@ -562,20 +671,20 @@ export default function App() {
                 onError={(e) => (e.currentTarget.style.display = "none")}
               />
             )}
-            <h1>{playing.title}</h1>
-            <p className="artist">{playing.artists.join(", ")}</p>
+            <h1>{track.title}</h1>
+            <p className="artist">{track.artists.join(", ")}</p>
             <p className="album">
-              {playing.album}
-              {playing.released && <span> · {playing.released.slice(0, 4)}</span>}
+              {track.album}
+              {track.released && <span> · {track.released.slice(0, 4)}</span>}
             </p>
             <div
               className="bar"
               dir="ltr"
               onClick={(e) => {
-                if (canControl === false || !playing.durationMs) return;
+                if (canControl === false || viewing || !track.durationMs) return;
                 const box = e.currentTarget.getBoundingClientRect();
                 const at = Math.min(1, Math.max(0, (e.clientX - box.left) / box.width));
-                const target = at * playing.durationMs;
+                const target = at * track.durationMs;
                 run(() => seek(target), () => setProgress(target));
               }}
             >
@@ -589,10 +698,10 @@ export default function App() {
               ))}
             </div>
             <p className="time" dir="ltr">
-              {mmss(progress)} <span>/ {mmss(playing.durationMs)}</span>
+              {mmss(progress)} <span>/ {mmss(track.durationMs)}</span>
             </p>
 
-            {canControl !== false && (
+            {canControl !== false && !viewing && (
               <div className="transport" dir="ltr">
                 <button aria-label={t.prevTrack} onClick={() => run(skipPrev)}>
                   <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
@@ -604,12 +713,12 @@ export default function App() {
                   aria-label={t.playPause}
                   onClick={() =>
                     run(
-                      playing.isPlaying ? pause : play,
+                      track.isPlaying ? pause : play,
                       () => setPlaying((p) => (p ? { ...p, isPlaying: !p.isPlaying } : p)),
                     )
                   }
                 >
-                  {playing.isPlaying ? (
+                  {track.isPlaying ? (
                     <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
                       <path fill="currentColor" d="M7 5h4v14H7zm6 0h4v14h-4z" />
                     </svg>
@@ -639,31 +748,40 @@ export default function App() {
             )}
           </section>
 
+          {viewing && (
+            <p className="from-history">
+              {t.fromHistory}
+              <button className="ghost" onClick={() => setViewing(null)}>
+                {t.backToNow}
+              </button>
+            </p>
+          )}
+
           <section className="stream" ref={streamRef}>
             {loading && <p className="loading">{t.loading}</p>}
 
-            {notes && (
+            {activeNotes && (
               <>
-                {notes.headline && <p className="headline">{notes.headline}</p>}
-                {notes.thread && (
+                {activeNotes.headline && <p className="headline">{activeNotes.headline}</p>}
+                {activeNotes.thread && (
                   <p className="thread">
-                    <b>{t.thread}</b> {notes.thread}
+                    <b>{t.thread}</b> {activeNotes.thread}
                   </p>
                 )}
 
                 {shown.map((n, i) => (
                   <article key={`${n.title}-${i}`} className="note">
                     <span className={`kind ${n.kind}`}>{t.kinds[n.kind] ?? n.kind}</span>
-                    {n.at !== null && canControl !== false && playing.durationMs > 0 && (
+                    {n.at !== null && canControl !== false && !viewing && track.durationMs > 0 && (
                       <button
                         className="jump"
                         title={t.jumpTo}
                         onClick={() => {
-                          const target = n.at! * playing.durationMs;
+                          const target = n.at! * track.durationMs;
                           run(() => seek(target), () => setProgress(target));
                         }}
                       >
-                        {mmss(n.at * playing.durationMs)}
+                        {mmss(n.at * track.durationMs)}
                       </button>
                     )}
                     <h3>{n.title}</h3>
@@ -675,8 +793,8 @@ export default function App() {
                   <div className="pending">
                     <span>
                       {t.more(pending)}
-                      {nextAt !== undefined && playing.durationMs
-                        ? t.nextAt(mmss(nextAt * playing.durationMs))
+                      {nextAt !== undefined && track.durationMs
+                        ? t.nextAt(mmss(nextAt * track.durationMs))
                         : ""}
                     </span>
                     <button onClick={() => setRevealAll(true)}>{t.revealAll}</button>
@@ -684,11 +802,11 @@ export default function App() {
                 )}
 
                 <footer>
-                  {notes.confidence === "low" && <p className="warn">{t.lowConfidence}</p>}
-                  {!notes.live && !notes.evidence && <p className="warn">{t.noEvidence}</p>}
-                  {notes.sources.length > 0 && (
+                  {activeNotes.confidence === "low" && <p className="warn">{t.lowConfidence}</p>}
+                  {!activeNotes.live && !activeNotes.evidence && <p className="warn">{t.noEvidence}</p>}
+                  {activeNotes.sources.length > 0 && (
                     <p className="sources">
-                      {notes.sources.slice(0, 6).map(([url, title]) => (
+                      {activeNotes.sources.slice(0, 6).map(([url, title]) => (
                         <a key={url} href={url} target="_blank" rel="noreferrer">
                           {title}
                         </a>

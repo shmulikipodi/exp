@@ -423,6 +423,57 @@ footer { max-width: 30em; margin-top: 48px; padding-top: 24px; border-top: 1px s
 }
 .get:hover { text-decoration: underline; }
 
+/* ---------- history ---------- */
+
+.past { list-style: none; margin: 0 0 8px; padding: 0; max-height: 46vh; overflow-y: auto; }
+.past li { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line); }
+.past li:last-child { border-bottom: 1px solid var(--line); }
+
+.past .open {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 4px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  text-align: start;
+}
+.past .open:hover { background: rgba(243,237,227,0.06); }
+.past img { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+.past .what { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.past .what b { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.past .what span { font-size: 12px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.past .when { font: 10px var(--mono); color: var(--faint); flex-shrink: 0; }
+
+.past .drop {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--faint);
+  background: none;
+  border: none;
+}
+.past .drop:hover { color: #e06c5b; background: rgba(224,108,91,0.12); }
+
+.from-history {
+  position: absolute;
+  top: 22px;
+  inset-inline-start: 26px;
+  z-index: 3;
+  margin: 0;
+  font: 11px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.from-history button { display: block; margin-top: 3px; font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--accent); }
+
 .slots { list-style: none; margin: 14px 0 0; padding: 0; font: 12px var(--mono); }
 .slots li { padding: 5px 0; border-top: 1px solid var(--line); }
 .slots .good { color: #6fca8b; }
@@ -512,5 +563,6 @@ footer { max-width: 30em; margin-top: 48px; padding-top: 24px; border-top: 1px s
 @media (max-width: 560px) {
   .setup { padding: 60px 18px 80px; }
   .controls { top: 14px; inset-inline-end: 16px; }
+  .from-history { top: 14px; inset-inline-start: 18px; }
   .stream { padding-bottom: 40vh; }
 }
