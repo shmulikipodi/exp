@@ -114,8 +114,14 @@ button.ghost:hover { color: var(--dim); background: none; }
   min-width: 0;
 }
 
+/* A flex column whose content overflows shrinks its items, and a 6px bar shrinks to
+   exactly nothing — which is how the progress line disappeared when the transport and
+   the larger type pushed the sleeve past the viewport. Nothing here may shrink; the
+   artwork is capped by viewport height instead, so there is never a shortfall. */
+.sleeve > * { flex-shrink: 0; }
+
 .cover {
-  width: 100%;
+  width: min(100%, 46vh);
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: 10px;
@@ -199,6 +205,25 @@ button.ghost:hover { color: var(--dim); background: none; }
   height: 11px;
   box-shadow: 0 0 9px -1px var(--accent);
 }
+
+/* The artist and the album are questions you can click. */
+.link {
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px dashed rgba(243, 237, 227, 0.28);
+  cursor: pointer;
+}
+.link:hover:not(:disabled) {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: none;
+}
+.link:disabled { opacity: 1; cursor: default; border-bottom-color: transparent; }
+.link.busy { animation: pulse 1.2s ease-in-out infinite; }
 
 .time { margin: 14px 0 0; font: 11px var(--mono); color: var(--faint); letter-spacing: 0.05em; }
 .time span { opacity: 0.55; }

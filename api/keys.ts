@@ -55,10 +55,10 @@ function cooldownFrom(message: string): number {
   return Math.min(MAX_COOLDOWN_MS, Math.max(MIN_COOLDOWN_MS, ms));
 }
 
-export function poolStatus(prefix = "GEMINI", extra: string[] = []) {
+export function poolStatus(prefix = "GEMINI", extra: string[] = [], scope = "") {
   const now = Date.now();
   return keyPool(prefix, extra).map((k) => {
-    const until = cooling.get(k) ?? 0;
+    const until = cooling.get(`${scope}|${k}`) ?? 0;
     return {
       key: `…${k.slice(-4)}`,
       cooling: until > now,
@@ -76,7 +76,7 @@ export async function withKey<T>(
   prefix: string,
   fn: (key: string) => Promise<T>,
   extra: string[] = [],
-  mayWait = true,
+  scope = "",
 ): Promise<T> {
   const keys = keyPool(prefix, extra);
   if (keys.length === 0) {
@@ -86,7 +86,7 @@ export async function withKey<T>(
   }
 
   const now = Date.now();
-  const fresh = keys.filter((k) => (cooling.get(k) ?? 0) <= now);
+  const fresh = keys.filter((k) => (cooling.get(`${scope}|${k}`) ?? 0) <= now);
   const order = fresh.length > 0 ? fresh : keys;
 
   const start = cursor++ % order.length;
@@ -98,7 +98,7 @@ export async function withKey<T>(
     for (let attempt = 1; attempt <= TRANSIENT_ATTEMPTS; attempt++) {
       try {
         const out = await fn(key);
-        cooling.delete(key); // it worked — whatever we thought before was wrong
+        cooling.delete(`${scope}|${key}`); // it worked — whatever we thought was wrong
         return out;
       } catch (err) {
         const e = err as Error & { status?: number };
@@ -114,31 +114,16 @@ export async function withKey<T>(
         }
 
         if (!isExhausted(e.status ?? 0, e.message)) throw err;
-        cooling.set(key, Date.now() + cooldownFrom(e.message));
+        cooling.set(`${scope}|${key}`, Date.now() + cooldownFrom(e.message));
         break; // spent — switch to the next key
       }
     }
   }
 
-  // Every key is spent. If they are all inside a short cooldown this is the per-minute
-  // cap rather than real exhaustion, so wait for the first one to come back.
-  const waits = keys.map((k) => (cooling.get(k) ?? 0) - Date.now());
-  const allCooling = waits.every((w) => w > 0);
-  const soonest = allCooling ? Math.min(...waits) : 0;
-
-  if (mayWait && soonest > 0 && soonest <= RATE_WAIT_MAX_MS) {
-    await sleep(soonest + 750);
-    return withKey(prefix, fn, extra, false);
-  }
-
-  if (soonest > 0) {
-    throw new Error(
-      `Rate limited on all ${keys.length} key(s) — the free tier allows 20 requests a ` +
-        `minute per project. Try again in ${Math.ceil(soonest / 1000)}s.`,
-    );
-  }
-
+  // The free tier's limit is requests per DAY, per project, per model — Google's
+  // "retry in 43s" hint is misleading and waiting it out achieves nothing. The caller
+  // falls back to another model instead, which has its own separate daily allowance.
   throw new Error(
-    `All ${keys.length} ${prefix} key(s) are out of quota. Add another from a NEW Google Cloud project — quota is per project, not per key. (${last})`,
+    `QUOTA: all ${keys.length} key(s) are out of the daily free-tier allowance for this model. (${last})`,
   );
 }

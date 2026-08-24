@@ -11,6 +11,11 @@ export type Grounded = {
   live: boolean; // false = answered from model knowledge, search was unavailable
 };
 
+// Free-tier quota is counted per project PER MODEL, so a second model is a second
+// daily allowance rather than a smaller share of the same one. Order matters: the
+// first is the one we actually want, the rest are what we fall back to.
+export const MODEL_CHAIN = ["gemini-3.6-flash", "gemini-flash-lite-latest"];
+
 const GEMINI = (m: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
 const GROQ = "https://api.groq.com/openai/v1/chat/completions";
@@ -43,7 +48,9 @@ async function geminiOnce(
   search: boolean,
   extra: string[] = [],
 ): Promise<any> {
-  return withKey("GEMINI", async (key) => {
+  return withKey(
+    "GEMINI",
+    async (key) => {
     const res = await fetch(GEMINI(model), {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": key },
@@ -67,6 +74,27 @@ async function geminiOnce(
 }
 
 async function geminiCall(
+  system: string,
+  user: string,
+  model: string,
+  extra: string[] = [],
+): Promise<Grounded> {
+  const chain = [model, ...MODEL_CHAIN.filter((m) => m !== model)];
+  let last: Error | null = null;
+
+  for (const candidate of chain) {
+    try {
+      return await geminiOne(system, user, candidate, extra);
+    } catch (err) {
+      last = err as Error;
+      // Only a spent daily allowance is worth trying another model for.
+      if (!/^QUOTA:/.test(last.message)) throw err;
+    }
+  }
+  throw last ?? new Error("No Gemini model available");
+}
+
+async function geminiOne(
   system: string,
   user: string,
   model: string,

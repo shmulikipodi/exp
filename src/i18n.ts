@@ -34,6 +34,10 @@ export const STRINGS = {
     reconnect: "Reconnect to enable controls",
     noDevice: "Open Spotify on a device first.",
     jumpTo: "Jump to this moment",
+    aboutArtist: (a: string, album: string) =>
+      `Tell me about ${a} — who they are, and where ${album} sits in their work.`,
+    aboutAlbum: (album: string) =>
+      `Tell me about the album ${album}: how it came together, and how this track sits on it.`,
     askAbout: "Ask",
     markWrong: "Wrong",
     askPlaceholder: "What do you want to know?",
@@ -67,7 +71,7 @@ export const STRINGS = {
     keysCooling: (s: number) => `out of quota, retrying in ${s}s`,
     keysButton: (n: number) => (n === 0 ? "keys" : `keys · ${n}`),
     quota:
-      "Too many requests in the last minute — the free tier allows 20 a minute per Google Cloud project. It will come back on its own shortly; adding a key from another project raises the ceiling.",
+      "The free tier's daily allowance is used up on every key and model. It resets tomorrow; a key from another Google Cloud project adds a fresh allowance today.",
     noEvidence:
       "No catalogue entry and no live search for this one — written from model memory, so check anything surprising.",
     kinds: {
@@ -110,6 +114,10 @@ export const STRINGS = {
     reconnect: "התחברו מחדש כדי להפעיל את הכפתורים",
     noDevice: "פתחו את Spotify במכשיר כלשהו קודם.",
     jumpTo: "לקפוץ לרגע הזה",
+    aboutArtist: (a: string, album: string) =>
+      `ספרו לי על ${a} — מי הם, ואיפה ${album} ממוקם בעבודה שלהם.`,
+    aboutAlbum: (album: string) =>
+      `ספרו לי על האלבום ${album}: איך הוא נוצר, ואיך השיר הזה יושב בתוכו.`,
     askAbout: "שאלה",
     markWrong: "שגוי",
     askPlaceholder: "מה תרצו לדעת?",
@@ -143,7 +151,7 @@ export const STRINGS = {
     keysCooling: (s: number) => `נגמרה המכסה, ניסיון חוזר בעוד ${s} שניות`,
     keysButton: (n: number) => (n === 0 ? "מפתחות" : `מפתחות · ${n}`),
     quota:
-      "יותר מדי בקשות בדקה האחרונה — המכסה החינמית מאפשרת 20 בקשות לדקה לכל פרויקט Google Cloud. זה יחזור מעצמו בקרוב; מפתח מפרויקט נוסף מרים את התקרה.",
+      "המכסה היומית החינמית נגמרה בכל המפתחות והמודלים. היא מתאפסת מחר; מפתח מפרויקט Google Cloud נוסף מוסיף מכסה חדשה כבר היום.",
     noEvidence:
       "אין רישום בקטלוג ואין חיפוש חי לשיר הזה — נכתב מזיכרון המודל, אז כדאי לבדוק כל דבר מפתיע.",
     kinds: {

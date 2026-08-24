@@ -226,8 +226,12 @@ export default function App() {
       setProgress((p) => {
         const cur = latest.current.playing;
         if (!cur?.isPlaying) return p;
+        const next = p + TICK_MS * (DEMO ? DEMO_SPEED : 1);
+        // The demo loops, so the preview shows a bar that is actually moving rather
+        // than one frozen at 100%.
+        if (DEMO) return next >= cur.durationMs ? 0 : next;
         // Never run past the end — the poll only corrects us every few seconds.
-        return Math.min(p + TICK_MS * (DEMO ? DEMO_SPEED : 1), cur.durationMs);
+        return Math.min(next, cur.durationMs);
       });
     }, TICK_MS);
     return () => clearInterval(tick);
@@ -631,6 +635,13 @@ export default function App() {
         });
         setDraftQ("");
         setAskingAbout(null);
+        if (!about) {
+          // Answers about the record collect at the end — take the reader to it.
+          requestAnimationFrame(() => {
+            const el = streamRef.current;
+            el?.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+          });
+        }
       } catch (e) {
         setError((e as Error).message);
       } finally {
@@ -826,9 +837,23 @@ export default function App() {
               />
             )}
             <h1>{track.title}</h1>
-            <p className="artist">{track.artists.join(", ")}</p>
+            <p className="artist">
+              <button
+                className={`link${busy === "general" ? " busy" : ""}`}
+                disabled={!activeNotes || busy !== ""}
+                onClick={() => ask(t.aboutArtist(track.artists.join(", "), track.album), null)}
+              >
+                {track.artists.join(", ")}
+              </button>
+            </p>
             <p className="album">
-              {track.album}
+              <button
+                className={`link${busy === "general" ? " busy" : ""}`}
+                disabled={!activeNotes || busy !== ""}
+                onClick={() => ask(t.aboutAlbum(track.album), null)}
+              >
+                {track.album}
+              </button>
               {track.released && <span> · {track.released.slice(0, 4)}</span>}
             </p>
             <div
