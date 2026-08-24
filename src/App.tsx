@@ -25,6 +25,8 @@ import { matchesLang, schedule } from "./notes-logic";
 import { Keys, liveKeys } from "./Keys";
 import { onPlayer, startPlayer, type PlayerState } from "./player";
 import { History } from "./History";
+import { Linked } from "./Linked";
+import { Lyrics } from "./Lyrics";
 import {
   type Entry,
   forget,
@@ -59,6 +61,7 @@ type Notes = {
   sources: [string, string][];
   live: boolean;
   evidence: boolean;
+  links?: Record<string, string>;
   answers?: Answer[];
   rejected?: string[];
 };
@@ -157,6 +160,7 @@ export default function App() {
   const [canControl, setCanControl] = useState<boolean | null>(null);
   const [controlNote, setControlNote] = useState("");
   const [showHistory, setShowHistory] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false);
   const [historyCount, setHistoryCount] = useState(0);
   const [viewing, setViewing] = useState<{ entry: Entry; notes: Notes } | null>(null);
   const [busy, setBusy] = useState("");
@@ -306,6 +310,7 @@ export default function App() {
       const extra = await trackDetails(up.albumId, up.artistId).catch(() => ({
         label: "",
         genres: [] as string[],
+        copyrights: [] as string[],
       }));
       if (!alive) return;
 
@@ -318,6 +323,7 @@ export default function App() {
         isrc: up.isrc,
         label: extra.label,
         genres: extra.genres,
+        copyrights: extra.copyrights,
         recent: [`${playing.artists.join(", ")} — ${playing.title}`, ...history.current].slice(0, 5),
         lang,
         keys: liveKeys(),
@@ -407,6 +413,7 @@ export default function App() {
       const extra = await trackDetails(playing.albumId, playing.artistId).catch(() => ({
         label: "",
         genres: [] as string[],
+        copyrights: [] as string[],
       }));
 
       return post<Notes>({
@@ -418,6 +425,7 @@ export default function App() {
         isrc: playing.isrc,
         label: extra.label,
         genres: extra.genres,
+        copyrights: extra.copyrights,
         recent,
         lang,
         wide,
@@ -845,11 +853,25 @@ export default function App() {
   const chrome = (
     <>
       <div className="controls">
+        {track && (
+          <button onClick={() => setShowLyrics(true)}>{t.lyricsButton}</button>
+        )}
         <button onClick={() => setShowHistory(true)}>{t.historyButton(historyCount)}</button>
         <button onClick={() => setShowKeys(true)}>{t.keysButton(keyCount)}</button>
         <button onClick={toggleLang}>{t.other}</button>
       </div>
       {showKeys && <Keys t={t} onClose={closeKeys} />}
+      {showLyrics && track && (
+        <Lyrics
+          t={t}
+          title={track.title}
+          artist={track.artists[0] ?? ""}
+          album={track.album}
+          durationMs={track.durationMs}
+          progressMs={progress}
+          onClose={() => setShowLyrics(false)}
+        />
+      )}
       {showHistory && (
         <History
           t={t}
@@ -1076,7 +1098,11 @@ export default function App() {
 
             {activeNotes && (
               <>
-                {activeNotes.headline && <p className="headline">{activeNotes.headline}</p>}
+                {activeNotes.headline && (
+                  <p className="headline">
+                    <Linked text={activeNotes.headline} links={activeNotes.links} />
+                  </p>
+                )}
                 {activeNotes.thread && (
                   <p className="thread">
                     <b>{t.thread}</b> {activeNotes.thread}
@@ -1120,7 +1146,9 @@ export default function App() {
                       </button>
                     )}
                     <h3>{n.title}</h3>
-                    <p>{n.body}</p>
+                    <p>
+                      <Linked text={n.body} links={activeNotes.links} />
+                    </p>
 
                     <div className="note-actions">
                       <button
@@ -1166,7 +1194,9 @@ export default function App() {
                       .map((a) => (
                         <div className="answer" key={a.id}>
                           <p className="q">{a.question}</p>
-                          <p>{a.body}</p>
+                          <p>
+                            <Linked text={a.body} links={activeNotes.links} />
+                          </p>
                           {(a.sources ?? []).length > 0 && (
                             <p className="sources">
                               {(a.sources ?? []).slice(0, 4).map(([url, title]) => (
@@ -1187,7 +1217,9 @@ export default function App() {
                   .map((a) => (
                     <div className={`answer standalone${String(a.about).startsWith("topic:") ? " topic" : ""}`} key={a.id}>
                       <p className="q">{a.question}</p>
-                      <p>{a.body}</p>
+                      <p>
+                        <Linked text={a.body} links={activeNotes.links} />
+                      </p>
                       {(a.sources ?? []).length > 0 && (
                         <p className="sources">
                           {(a.sources ?? []).slice(0, 4).map(([url, title]) => (

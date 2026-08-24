@@ -16,6 +16,20 @@ export default defineConfig(({ mode }) => {
         // no `vercel dev`, no project linking. In production Vercel serves it.
         name: "api-routes",
         configureServer(server) {
+          const route = (name: string) =>
+            server.middlewares.use(`/api/${name}`, async (req, res, next) => {
+              try {
+                const mod = await server.ssrLoadModule(`/api/${name}.ts`);
+                await mod.default(req, res);
+              } catch (err) {
+                res.statusCode = 500;
+                res.setHeader("content-type", "application/json");
+                res.end(JSON.stringify({ error: (err as Error).message }));
+                next();
+              }
+            });
+
+          route("lyrics");
           server.middlewares.use("/api/notes", async (req, res, next) => {
             try {
               const mod = await server.ssrLoadModule("/api/notes.ts");

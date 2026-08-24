@@ -305,7 +305,7 @@ export async function queueNext(): Promise<Upcoming | null> {
 export async function trackDetails(
   albumId: string,
   artistId: string,
-): Promise<{ label: string; genres: string[] }> {
+): Promise<{ label: string; genres: string[]; copyrights: string[] }> {
   const [album, artist] = await Promise.all([
     albumId ? get(`albums/${albumId}`).catch(() => null) : null,
     artistId ? get(`artists/${artistId}`).catch(() => null) : null,
@@ -313,6 +313,11 @@ export async function trackDetails(
   return {
     label: album?.label ?? "",
     genres: (artist?.genres ?? []).slice(0, 5),
+    // The ℗ line names who owns the master and from when — which is how you tell a
+    // reissue from an original, and a catalogue that changed hands from one that didn't.
+    copyrights: (album?.copyrights ?? [])
+      .map((c: any) => `${c.type === "P" ? "℗" : "©"} ${c.text}`)
+      .slice(0, 3),
   };
 }
 

@@ -33,6 +33,12 @@ You are NOT writing an encyclopedia entry. Hard rules:
   wrong on covers and re-recordings; if the credits look like a different version, say so
   in a note and set confidence "low".
 - No second person. Don't tell the listener how to feel or what to notice emotionally.
+- Wrap anything a reader might want to look up in double square brackets: [[Eddie Hazel]],
+  [[United Sound Systems]], [[Echoplex]], [[Westbound Records]], [[Muscle Shoals]].
+  People, studios, instruments and equipment, labels, places, bands, songs and albums.
+  Wrap the name only — "[[Eddie Hazel]]'s guitar", never "[[Eddie Hazel's guitar]]" — and
+  write the name as it would be titled, not as a description. Do not wrap ordinary words,
+  and do not put a link in the note's title.
 
 Note kinds, pick whichever the evidence actually supports:
   origin     — where the song came from: the demo, the commission, the argument, the debt
@@ -82,6 +88,7 @@ type Body = {
   durationMs?: number;
   label?: string;
   genres?: string[];
+  copyrights?: string[];
   recent?: string[];
   lang?: string;
   isrc?: string;
@@ -155,6 +162,52 @@ export function toFraction(at: unknown, durationMs: number): number | null {
   const ms = (Number(m[1]) * 60 + Number(m[2])) * 1000;
   if (ms < 0 || ms > durationMs) return null;
   return ms / durationMs;
+}
+
+const LINK = /\[\[([^\]]{2,60})\]\]/g;
+
+/**
+ * Resolves the [[marked]] names to real Wikipedia articles in one request, rather than
+ * letting the model write URLs — it will happily invent a plausible one. Anything with
+ * no article falls back to a search, which cannot 404.
+ */
+async function resolveLinks(texts: string[]): Promise<Record<string, string>> {
+  const terms = new Set<string>();
+  for (const text of texts) {
+    for (const m of String(text ?? "").matchAll(LINK)) terms.add(m[1].trim());
+  }
+  if (terms.size === 0) return {};
+
+  const wanted = [...terms].slice(0, 40);
+  const search = (t: string) =>
+    `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(t)}`;
+  const links: Record<string, string> = Object.fromEntries(wanted.map((t) => [t, search(t)]));
+
+  try {
+    const url =
+      `https://en.wikipedia.org/w/api.php?action=query&redirects=1&format=json&origin=*&titles=` +
+      encodeURIComponent(wanted.join("|"));
+    const res = await fetch(url, { headers: { "user-agent": "exp/1.0 ( https://github.com/ )" } });
+    if (!res.ok) return links;
+    const data: any = await res.json();
+
+    // Wikipedia normalises and redirects on the way; both have to be followed back to
+    // the term the model actually wrote.
+    const trace = new Map<string, string>();
+    for (const n of data?.query?.normalized ?? []) trace.set(n.to, n.from);
+    for (const r of data?.query?.redirects ?? []) trace.set(r.to, trace.get(r.from) ?? r.from);
+
+    for (const page of Object.values<any>(data?.query?.pages ?? {})) {
+      if (page.missing !== undefined || !page.title) continue;
+      const original = trace.get(page.title) ?? page.title;
+      links[original] = `https://en.wikipedia.org/wiki/${encodeURIComponent(
+        page.title.replace(/ /g, "_"),
+      )}`;
+    }
+  } catch {
+    // Search links are already in place; a failure here costs nothing.
+  }
+  return links;
 }
 
 /** Models fence JSON even when told not to. Dig the object out. */
@@ -302,6 +355,11 @@ export default async function handler(req: any, res: any) {
         : "",
       body.label ? `Label: ${body.label}` : "",
       (body.genres ?? []).length ? `Genres Spotify files the artist under: ${(body.genres ?? []).join(", ")}` : "",
+      (body.copyrights ?? []).length
+        ? `Copyright line on the release: ${(body.copyrights ?? []).join(" / ")}. The ℗ ` +
+          `year and owner describe the master. If either disagrees with the original ` +
+          `release, this pressing is a reissue and whoever is named bought or inherited it.`
+        : "",
     ]
       .filter(Boolean)
       .join("\n");
@@ -492,7 +550,9 @@ export default async function handler(req: any, res: any) {
         kind: String(n.kind ?? "origin"),
         at,
         atBasis: at === null ? null : n.atBasis === "documented" ? "documented" : "estimated",
-        title: String(n.title ?? "").trim(),
+        title: String(n.title ?? "")
+          .replace(LINK, "$1")
+          .trim(),
         body: String(n.body).trim(),
         };
       });
@@ -507,11 +567,18 @@ export default async function handler(req: any, res: any) {
       seen.add(title);
     }
 
+    const headline = typeof parsed.headline === "string" ? parsed.headline.trim() : "";
+    const links = await resolveLinks([headline, ...notes.map((n: any) => n.body)]);
+
     res.end(
       JSON.stringify({
-        headline: typeof parsed.headline === "string" ? parsed.headline.trim() : "",
+        headline,
         notes,
-        thread: typeof parsed.thread === "string" && parsed.thread.trim() ? parsed.thread.trim() : null,
+        links,
+        thread:
+          typeof parsed.thread === "string" && parsed.thread.trim()
+            ? parsed.thread.replace(LINK, "$1").trim()
+            : null,
         confidence: parsed.confidence === "low" ? "low" : "high",
         sources: [...evidence.sources, ...grounded.urls].slice(0, 8),
         live: grounded.live,
