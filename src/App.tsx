@@ -24,6 +24,7 @@ import { Keys, liveKeys } from "./Keys";
 import { History } from "./History";
 import {
   type Entry,
+  forget,
   history as readHistory,
   loadNotes,
   ready as storeReady,
@@ -114,6 +115,15 @@ async function post<T>(payload: Record<string, unknown>): Promise<T> {
   }
   if (data.error) throw new Error(data.error);
   return data;
+}
+
+/** Cached notes can be in the wrong language — anything written in Hebrew before the
+ *  prompt was fixed was stored under the Hebrew key while being English. Reading them
+ *  back would keep serving that mistake forever, so the cache is checked, not trusted. */
+function matchesLang(notes: Notes, lang: Lang): boolean {
+  if (lang !== "he") return true;
+  const text = notes.headline + notes.notes.map((n) => n.title + n.body).join(" ");
+  return /[\u0590-\u05FF]/.test(text);
 }
 
 const mmss = (ms: number) => {
@@ -337,20 +347,22 @@ export default function App() {
     history.current = [stamp, ...history.current.filter((h) => h !== stamp)].slice(0, 8);
 
     const inMemory = cache.current.get(key);
-    if (inMemory) {
+    if (inMemory && matchesLang(inMemory, lang)) {
       setNotes(inMemory);
       return;
     }
+    if (inMemory) cache.current.delete(key);
 
     setNotes(null);
     setLoading(true);
 
     (async () => {
       const stored = (await loadNotes(playing.id, lang)) as Notes | null;
-      if (stored) {
+      if (stored && matchesLang(stored, lang)) {
         cache.current.set(key, stored);
         return stored;
       }
+      if (stored) await forget(playing.id, lang); // wrong language — write it again
 
       // Label and genres are cheap and the model would otherwise guess at them.
       const extra = await trackDetails(playing.albumId, playing.artistId).catch(() => ({
