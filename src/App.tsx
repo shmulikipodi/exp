@@ -161,6 +161,7 @@ export default function App() {
   const [keyCount, setKeyCount] = useState(liveKeys().length);
   const [wide, setWide] = useState(() => localStorage.getItem("ln.wide") === "1");
   const [player, setPlayer] = useState<PlayerState>({ status: "off" });
+  const [upNext, setUpNext] = useState<{ label: string; headline: string } | null>(null);
   // null = we have not tried to control playback yet. false = this account can't.
   const [canControl, setCanControl] = useState<boolean | null>(null);
   const [controlNote, setControlNote] = useState("");
@@ -304,15 +305,31 @@ export default function App() {
   useEffect(() => {
     if (DEMO || !notes || !playing) return;
     let alive = true;
+    setUpNext(null);
+
+    let queued: Awaited<ReturnType<typeof queueNext>> = null;
+    queueNext()
+      .then((up) => {
+        if (!alive || !up?.id) return;
+        queued = up;
+        setUpNext({ label: `${up.artists.join(", ")} — ${up.title}`, headline: "" });
+      })
+      .catch(() => {
+        /* no queue is an ordinary state */
+      });
 
     // Only worth writing the next track's notes once this one has been left playing.
     const timer = setTimeout(() => {
     (async () => {
-      const up = await queueNext().catch(() => null);
+      const up = queued ?? (await queueNext().catch(() => null));
       if (!alive || !up?.id) return;
 
       const key = `${up.id}:${lang}`;
-      if (cache.current.has(key)) return;
+      const already = cache.current.get(key);
+      if (already) {
+        setUpNext({ label: `${up.artists.join(", ")} — ${up.title}`, headline: already.headline });
+        return;
+      }
 
       const extra = await trackDetails(up.albumId, up.artistId).catch(() => ({
         label: "",
@@ -338,6 +355,7 @@ export default function App() {
 
       if (!alive || !data) return;
       cache.current.set(key, data);
+      setUpNext({ label: `${up.artists.join(", ")} — ${up.title}`, headline: data.headline ?? "" });
       saveNotes(
         {
           id: up.id,
@@ -1081,6 +1099,13 @@ export default function App() {
                   </svg>
                 </button>
               </div>
+            )}
+
+            {!viewing && upNext && (
+              <p className="up-next">
+                <b>{t.upNext}</b> {upNext.label}
+                {upNext.headline && <span>{upNext.headline}</span>}
+              </p>
             )}
 
             {!viewing && player.status !== "off" && (

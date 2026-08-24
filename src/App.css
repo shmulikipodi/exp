@@ -267,6 +267,29 @@ button.ghost:hover { color: var(--dim); background: none; }
 }
 .transport button.big:hover { filter: brightness(1.08); background: var(--accent); }
 
+.up-next {
+  margin: 18px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dim);
+  max-width: 38ch;
+}
+.up-next b {
+  font: 600 10px var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-inline-end: 8px;
+}
+/* The next track's notes are already written by the time this shows them. */
+.up-next span {
+  display: block;
+  margin-top: 5px;
+  font: italic 14px/1.45 var(--serif);
+  color: var(--faint);
+}
+[dir="rtl"] .up-next b { letter-spacing: 0; text-transform: none; font-family: inherit; font-size: 12px; }
+
 .player-line {
   margin: 14px 0 0;
   font: 12px var(--mono);
