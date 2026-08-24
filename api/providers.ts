@@ -16,6 +16,12 @@ export type Grounded = {
 // first is the one we actually want, the rest are what we fall back to.
 export const MODEL_CHAIN = ["gemini-3.6-flash", "gemini-flash-lite-latest"];
 
+// Search grounding is metered separately from generation and runs out first. Once it
+// has, every request was still paying for a failed attempt on every key before falling
+// back. Remember it and stop asking for a while.
+let searchBlockedUntil = 0;
+const SEARCH_RETRY_AFTER_MS = 30 * 60_000;
+
 const GEMINI = (m: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
 const GROQ = "https://api.groq.com/openai/v1/chat/completions";
@@ -75,8 +81,11 @@ async function geminiOnce(
     // report a key as valid while generation insisted there was none — invisible to
     // anyone whose environment keys covered for it.
     extra,
-    // Cooldowns are per key AND per model: a key spent on one model is fine on another.
-    model,
+    // Cooldowns are per key, per model AND per tool. Search grounding has its own free
+    // tier allowance, so a 429 from it was marking the key as spent for plain
+    // generation on that model too — and pushing every request onto the fallback model
+    // for no reason.
+    `${model}${search ? "+search" : ""}`,
   );
 }
 
@@ -110,10 +119,12 @@ async function geminiOne(
   let live = true;
   let data: any;
   try {
+    if (Date.now() < searchBlockedUntil) throw new Error("search grounding is out of quota");
     data = await geminiOnce(system, user, model, true, extra);
   } catch (err) {
-    // No search quota on this key — answer from model knowledge rather than dying.
-    if (!/quota|exhausted|rate limit/i.test((err as Error).message)) throw err;
+    // No search quota — answer from model knowledge rather than dying.
+    if (!/quota|exhausted|rate limit|search grounding/i.test((err as Error).message)) throw err;
+    searchBlockedUntil = Date.now() + SEARCH_RETRY_AFTER_MS;
     live = false;
     data = await geminiOnce(
       `${system}\n\nYou have no live web access. Answer from your own knowledge, and say explicitly when something may have changed since your training cutoff.`,

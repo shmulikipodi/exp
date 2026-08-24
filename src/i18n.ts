@@ -46,6 +46,10 @@ export const STRINGS = {
     askSend: "Ask",
     asking: "Asking…",
     moreNotes: "More notes",
+    wideOn: "Wide sources",
+    wideOff: "Track only",
+    wideHint:
+      "Wide reads the artist's and the album's sources too. Slower, and better for anything the track's own credits don't cover.",
     thinking: "Writing…",
     nothingMore: "Nothing more it can stand behind on this one.",
     historyTitle: "What you've heard",
@@ -127,6 +131,10 @@ export const STRINGS = {
     askSend: "שליחה",
     asking: "שואל…",
     moreNotes: "עוד הערות",
+    wideOn: "מקורות רחבים",
+    wideOff: "השיר בלבד",
+    wideHint:
+      "מצב רחב קורא גם את המקורות של האמן ושל האלבום. איטי יותר, וטוב יותר לכל מה שהקרדיטים של השיר לא מכסים.",
     thinking: "כותב…",
     nothingMore: "אין עוד משהו שהוא יכול לעמוד מאחוריו כאן.",
     historyTitle: "מה שכבר שמעתם",

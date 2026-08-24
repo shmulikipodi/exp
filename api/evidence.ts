@@ -27,7 +27,7 @@ export function sameSong(a: string | undefined, b: string): boolean {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function json(url: string, timeoutMs = 9000, tries = 2): Promise<any> {
+async function json(url: string, timeoutMs = 4500, tries = 2): Promise<any> {
   for (let i = 0; i < tries; i++) {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), timeoutMs);
@@ -44,7 +44,7 @@ async function json(url: string, timeoutMs = 9000, tries = 2): Promise<any> {
     } finally {
       clearTimeout(timer);
     }
-    await sleep(1200);
+    await sleep(700);
   }
   return null; // evidence is best-effort — never fail the request over it
 }
@@ -66,16 +66,11 @@ async function musicbrainz(title: string, artist: string, isrc: string): Promise
   // An ISRC identifies the exact recording. Searching by title matches alternate
   // takes, remasters and covers just as happily as the thing actually playing.
   if (isrc) {
-    const byIsrc = await json(`${MB}/isrc/${encodeURIComponent(isrc)}?fmt=json`);
+    const byIsrc = await json(
+      `${MB}/isrc/${encodeURIComponent(isrc)}?inc=artist-rels+work-rels+releases+artist-credits&fmt=json`,
+    );
     const match = (byIsrc?.recordings ?? []).find((r: any) => sameSong(r?.title, title));
-    const exact = match?.id;
-    if (exact) {
-      await sleep(1100);
-      const rec = await json(
-        `${MB}/recording/${exact}?inc=artist-rels+work-rels+releases+artist-credits&fmt=json`,
-      );
-      if (rec) return describeRecording(rec, exact, artist, true);
-    }
+    if (match?.id) return describeRecording(match, match.id, artist, true);
   }
 
   const query = encodeURIComponent(`recording:"${clean(title)}" AND artist:"${clean(artist)}"`);
@@ -83,7 +78,7 @@ async function musicbrainz(title: string, artist: string, isrc: string): Promise
   const hit = (search?.recordings ?? []).find((r: any) => (r.score ?? 0) >= 90);
   if (!hit?.id) return { text: "", sources: [] };
 
-  await sleep(1100);
+  await sleep(600);
   const rec = await json(
     `${MB}/recording/${hit.id}?inc=artist-rels+work-rels+releases+artist-credits&fmt=json`,
   );
@@ -101,10 +96,12 @@ async function describeRecording(
 ): Promise<Evidence> {
   const lines = credits(rec.relations);
 
-  // Composers and lyricists hang off the underlying work, not the recording.
+  // Composers and lyricists hang off the underlying work, not the recording — but that
+  // is a third round-trip with a wait in front of it, so it is only worth making when
+  // the recording itself named nobody.
   const workId = (rec.relations ?? []).find((r: any) => r["target-type"] === "work")?.work?.id;
-  if (workId) {
-    await sleep(1100);
+  if (workId && lines.length === 0) {
+    await sleep(600);
     const work = await json(`${MB}/work/${workId}?inc=artist-rels&fmt=json`);
     lines.push(...credits(work?.relations));
   }
@@ -178,6 +175,15 @@ async function wikipedia(title: string, artist: string, album = ""): Promise<Evi
 // 3. Every question and every "more notes" for the same track was re-running the whole
 // gather — four MusicBrainz round-trips with 1.1s of deliberate spacing between them,
 // for credits already in hand. Warm instances keep this; a cold one just pays once.
+const BUDGET_MS = 7000;
+
+function withBudget<T>(work: Promise<T>, fallback: T): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), BUDGET_MS)),
+  ]);
+}
+
 const CACHE_TTL_MS = 30 * 60_000;
 const CACHE_MAX = 60;
 const evidenceCache = new Map<string, { at: number; value: Evidence }>();
@@ -192,14 +198,25 @@ export async function gather(
   const hit = evidenceCache.get(key);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
 
-  const [mb, wp] = await Promise.all([
-    musicbrainz(title, artist, isrc).catch(() => ({ text: "", sources: [] as [string, string][] })),
-    wikipedia(title, artist, album).catch(() => ({ text: "", sources: [] as [string, string][] })),
-  ]);
+  const empty = { text: "", sources: [] as [string, string][] };
+  const [mb, wp, albumWp] = await withBudget(
+    Promise.all([
+      musicbrainz(title, artist, isrc).catch(() => empty),
+      wikipedia(title, artist, album).catch(() => empty),
+      // Most tracks have no article of their own but sit on an album that does, and it
+      // usually describes the same sessions. Fetched alongside, it costs no time.
+      album ? wikipediaOn(`${album} ${artist} album`, album).catch(() => empty) : empty,
+    ]),
+    [empty, empty, empty],
+  );
+
+  // Two articles about the same record would otherwise be handed over twice.
+  const seen = new Set(wp.sources.map(([url]) => url));
+  const extra = albumWp.sources.some(([url]) => seen.has(url)) ? empty : albumWp;
 
   const value: Evidence = {
-    text: [mb.text, wp.text].filter(Boolean).join("\n\n---\n\n"),
-    sources: [...mb.sources, ...wp.sources],
+    text: [mb.text, wp.text, extra.text].filter(Boolean).join("\n\n---\n\n"),
+    sources: [...mb.sources, ...wp.sources, ...extra.sources],
   };
 
   evidenceCache.set(key, { at: Date.now(), value });
@@ -246,7 +263,8 @@ async function wikipediaOn(term: string, label: string): Promise<Evidence> {
 
 /** Who the act is: formation, place, line-up. Not the song that happens to be playing. */
 export async function gatherArtist(artist: string): Promise<Evidence> {
-  const [mb, wp] = await Promise.all([
+  const blank = { text: "", sources: [] as [string, string][] };
+  const [mb, wp] = await withBudget(Promise.all([
     (async () => {
       const found = await json(
         `${MB}/artist/?query=artist:"${clean(artist)}"&fmt=json&limit=3`,
@@ -254,7 +272,7 @@ export async function gatherArtist(artist: string): Promise<Evidence> {
       const hit = (found?.artists ?? []).find((a: any) => (a.score ?? 0) >= 90);
       if (!hit?.id) return { text: "", sources: [] as [string, string][] };
 
-      await sleep(1100);
+      await sleep(600);
       const full = await json(`${MB}/artist/${hit.id}?inc=artist-rels&fmt=json`);
       if (!full) return { text: "", sources: [] as [string, string][] };
 
@@ -284,11 +302,8 @@ export async function gatherArtist(artist: string): Promise<Evidence> {
         ],
       };
     })().catch(() => ({ text: "", sources: [] as [string, string][] })),
-    wikipediaOn(`${artist} band musician`, artist).catch(() => ({
-      text: "",
-      sources: [] as [string, string][],
-    })),
-  ]);
+    wikipediaOn(`${artist} band musician`, artist).catch(() => blank),
+  ]), [blank, blank]);
 
   return {
     text: [mb.text, wp.text].filter(Boolean).join("\n\n---\n\n"),
@@ -298,7 +313,8 @@ export async function gatherArtist(artist: string): Promise<Evidence> {
 
 /** The record as a whole: when it was made, who made it, what it did. */
 export async function gatherAlbum(album: string, artist: string): Promise<Evidence> {
-  const [mb, wp] = await Promise.all([
+  const blank = { text: "", sources: [] as [string, string][] };
+  const [mb, wp] = await withBudget(Promise.all([
     (async () => {
       const found = await json(
         `${MB}/release-group/?query=releasegroup:"${clean(album)}" AND artist:"${clean(artist)}"&fmt=json&limit=3`,
@@ -327,11 +343,8 @@ export async function gatherAlbum(album: string, artist: string): Promise<Eviden
         ],
       };
     })().catch(() => ({ text: "", sources: [] as [string, string][] })),
-    wikipediaOn(`${album} ${artist} album`, album).catch(() => ({
-      text: "",
-      sources: [] as [string, string][],
-    })),
-  ]);
+    wikipediaOn(`${album} ${artist} album`, album).catch(() => blank),
+  ]), [blank, blank]);
 
   return {
     text: [mb.text, wp.text].filter(Boolean).join("\n\n---\n\n"),

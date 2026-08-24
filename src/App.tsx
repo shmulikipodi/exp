@@ -149,6 +149,7 @@ export default function App() {
   const [showKeys, setShowKeys] = useState(false);
   const [reload, setReload] = useState(0);
   const [keyCount, setKeyCount] = useState(liveKeys().length);
+  const [wide, setWide] = useState(() => localStorage.getItem("ln.wide") === "1");
   // null = we have not tried to control playback yet. false = this account can't.
   const [canControl, setCanControl] = useState<boolean | null>(null);
   const [controlNote, setControlNote] = useState("");
@@ -408,6 +409,7 @@ export default function App() {
         genres: extra.genres,
         recent,
         lang,
+        wide,
         keys: liveKeys(),
       });
     })()
@@ -433,7 +435,7 @@ export default function App() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [playing?.id, lang, reload]);
+  }, [playing?.id, lang, reload, wide]);
 
   // Reading from history reuses the whole player view — same sleeve, same notes, just
   // a track that isn't playing, with everything already revealed.
@@ -616,6 +618,7 @@ export default function App() {
         mode: "more",
         have: current.notes.map((n) => ({ title: n.title, body: n.body })),
         rejected: current.rejected ?? [],
+        wide,
         keys: liveKeys(),
       });
       const fresh = (data.notes ?? []).filter(
@@ -1165,9 +1168,27 @@ export default function App() {
                   ))}
 
                 <div className="conversation">
-                  <button onClick={askMore} disabled={busy === "more"}>
-                    {busy === "more" ? t.thinking : t.moreNotes}
-                  </button>
+                  <div className="row">
+                    <button onClick={askMore} disabled={busy === "more"}>
+                      {busy === "more" ? t.thinking : t.moreNotes}
+                    </button>
+                    <button
+                      className={`toggle${wide ? " on" : ""}`}
+                      title={t.wideHint}
+                      onClick={() => {
+                        const next = !wide;
+                        setWide(next);
+                        localStorage.setItem("ln.wide", next ? "1" : "0");
+                        // The notes were written from a narrower set of sources, so they
+                        // are worth writing again.
+                        cache.current.clear();
+                        fetchedFor.current = "";
+                        setReload((r) => r + 1);
+                      }}
+                    >
+                      {wide ? t.wideOn : t.wideOff}
+                    </button>
+                  </div>
                   <form
                     className="ask"
                     onSubmit={(e) => {

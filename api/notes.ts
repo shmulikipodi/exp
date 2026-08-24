@@ -23,8 +23,10 @@ You are NOT writing an encyclopedia entry. Hard rules:
 - If you don't actually know this song — covers, remasters and same-titled songs are easy
   to confuse — return few notes and set confidence "low". Saying less is always allowed.
   Inventing a producer, a sample or a session player is the one unforgivable failure.
-- You may be given EVIDENCE: catalogue credits and an encyclopedia article for this
-  recording. Treat it as the most reliable thing you have. Where it contradicts your own
+- You may be given EVIDENCE. The MusicBrainz part is a catalogue: structured credits,
+  dates and labels, and the most reliable thing you will see — but silent on anything
+  that is not a credit. The Wikipedia part is prose: broader, usually cited, and worth
+  more scepticism on a surprising claim than on a plain fact. Treat the two accordingly. Where it contradicts your own
   memory, the evidence wins. A credit list is raw material, not a note — "Producer: X" is
   only worth writing up if you can say something about what X did here.
 - Check the evidence names the same recording you were asked about. Catalogue matches go
@@ -80,6 +82,7 @@ type Body = {
   recent?: string[];
   lang?: string;
   isrc?: string;
+  wide?: boolean;
   keys?: string[];
   check?: boolean;
 };
@@ -399,6 +402,26 @@ export default async function handler(req: any, res: any) {
       );
     }
 
+    // "Wide" pulls the artist and the album in alongside the track's own evidence. It
+    // is a setting rather than the default because it is slower and most notes are
+    // about the recording, where the extra material is just noise to read past.
+    let wideBlock = "";
+    if (body.wide) {
+      const [artistEv, albumEv] = await Promise.all([
+        gatherArtist(artists[0]).catch(() => ({ text: "", sources: [] as [string, string][] })),
+        body.album
+          ? gatherAlbum(body.album, artists[0]).catch(() => ({
+              text: "",
+              sources: [] as [string, string][],
+            }))
+          : Promise.resolve({ text: "", sources: [] as [string, string][] }),
+      ]);
+      wideBlock =
+        (artistEv.text ? `EVIDENCE ABOUT THE ARTIST\n${artistEv.text}\n\nEND\n\n` : "") +
+        (albumEv.text ? `EVIDENCE ABOUT THE ALBUM\n${albumEv.text}\n\nEND\n\n` : "");
+      evidence.sources = [...evidence.sources, ...artistEv.sources, ...albumEv.sources].slice(0, 8);
+    }
+
     const already = (body.have ?? []).filter((n) => n?.title);
     const rejected = (body.rejected ?? []).filter(Boolean);
 
@@ -408,6 +431,7 @@ export default async function handler(req: any, res: any) {
         ? `Played just before this, most recent first:\n${recent.map((r) => `- ${r}`).join("\n")}\n\n`
         : "No listening history yet this session — set thread to null.\n\n") +
       evidenceBlock +
+      wideBlock +
       (rejected.length
         ? `The reader marked these earlier notes as WRONG. Do not repeat them, and do not ` +
           `write anything that depends on them being true:\n${rejected.map((r) => `- ${r}`).join("\n")}\n\n`
