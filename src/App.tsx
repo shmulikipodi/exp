@@ -36,7 +36,13 @@ import {
 import "./App.css";
 
 type Note = { kind: string; at: number | null; title: string; body: string };
-type Answer = { id: string; question: string; about: string | null; body: string };
+type Answer = {
+  id: string;
+  question: string;
+  about: string | null;
+  body: string;
+  sources?: [string, string][];
+};
 type Notes = {
   headline: string;
   notes: Note[];
@@ -650,7 +656,7 @@ export default function App() {
       setBusy(topic);
       setError("");
       try {
-        const data = await post<{ answer: string }>({
+        const data = await post<{ answer: string; sources?: [string, string][] }>({
           ...subject(),
           mode: topic,
           artist: who,
@@ -668,6 +674,7 @@ export default function App() {
               question: heading,
               about: `topic:${topic}`,
               body: data.answer,
+              sources: data.sources ?? [],
             },
           ],
           },
@@ -694,7 +701,7 @@ export default function App() {
       setBusy(tag);
       setError("");
       try {
-        const data = await post<{ answer: string }>({
+        const data = await post<{ answer: string; sources?: [string, string][] }>({
           ...subject(),
           mode: "ask",
           question: question.trim(),
@@ -711,6 +718,7 @@ export default function App() {
                 question: question.trim(),
                 about: about ? about.title : null,
                 body: data.answer,
+                sources: data.sources ?? [],
               },
             ],
           },
@@ -1078,6 +1086,15 @@ export default function App() {
                         <div className="answer" key={a.id}>
                           <p className="q">{a.question}</p>
                           <p>{a.body}</p>
+                          {(a.sources ?? []).length > 0 && (
+                            <p className="sources">
+                              {(a.sources ?? []).slice(0, 4).map(([url, title]) => (
+                                <a key={url} href={url} target="_blank" rel="noreferrer">
+                                  {title}
+                                </a>
+                              ))}
+                            </p>
+                          )}
                         </div>
                       ))}
                   </article>
@@ -1090,6 +1107,15 @@ export default function App() {
                     <div className={`answer standalone${String(a.about).startsWith("topic:") ? " topic" : ""}`} key={a.id}>
                       <p className="q">{a.question}</p>
                       <p>{a.body}</p>
+                      {(a.sources ?? []).length > 0 && (
+                        <p className="sources">
+                          {(a.sources ?? []).slice(0, 4).map(([url, title]) => (
+                            <a key={url} href={url} target="_blank" rel="noreferrer">
+                              {title}
+                            </a>
+                          ))}
+                        </p>
+                      )}
                     </div>
                   ))}
 

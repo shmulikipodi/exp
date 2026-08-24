@@ -169,9 +169,13 @@ listening to it right now. You have the same evidence the liner notes were writt
 
 - Answer in two to four sentences. No preamble, no restating the question.
 - Specific and checkable beats general and safe. Names, years, rooms, numbers.
-- If the evidence does not settle it and you are not confident from your own knowledge,
-  say so plainly in one sentence. A clear "that isn't documented" is a good answer; a
-  confident invention is the one unforgivable failure.
+- The evidence is a floor, not a ceiling. It is a catalogue entry and a few encyclopedia
+  articles: it will not cover most open questions. If you know the answer anyway, give
+  it — but mark the part that is not in the evidence, in the sentence itself, with a
+  short phrase like "not in the sources, but" or "from outside the evidence". The reader
+  can then weigh it. Refusing to answer something you actually know is its own failure.
+- What you must never do is present something uncertain as documented, or invent a name,
+  a date or a studio. "That isn't recorded anywhere I can see" is a good answer.
 - Do not praise the record or tell the listener how to feel about it.
 
 Return ONLY a JSON object, no markdown fence: { "answer": "..." }`;
@@ -308,8 +312,26 @@ export default async function handler(req: any, res: any) {
         res.statusCode = 400;
         return res.end(JSON.stringify({ error: "question required" }));
       }
+      // An open question about a record is rarely answerable from the track's own
+      // catalogue row. The artist and the album are cheap to add — both are cached per
+      // track — and they are where most questions actually live.
+      const [artistEv, albumEv] = await Promise.all([
+        gatherArtist(artists[0]).catch(() => ({ text: "", sources: [] as [string, string][] })),
+        body.album
+          ? gatherAlbum(body.album, artists[0]).catch(() => ({
+              text: "",
+              sources: [] as [string, string][],
+            }))
+          : Promise.resolve({ text: "", sources: [] as [string, string][] }),
+      ]);
+
+      const wide =
+        evidenceBlock +
+        (artistEv.text ? `EVIDENCE ABOUT THE ARTIST\n${artistEv.text}\n\nEND\n\n` : "") +
+        (albumEv.text ? `EVIDENCE ABOUT THE ALBUM\n${albumEv.text}\n\nEND\n\n` : "");
+
       const asked =
-        `${facts}\n\n${evidenceBlock}` +
+        `${facts}\n\n${wide}` +
         (body.about
           ? `The reader is asking about this note:\n"${body.about.title}" — ${body.about.body}\n\n`
           : "") +
@@ -332,7 +354,12 @@ export default async function handler(req: any, res: any) {
       return res.end(
         JSON.stringify({
           answer: answerText,
-          sources: answered.urls.slice(0, 4),
+          sources: [
+            ...evidence.sources,
+            ...artistEv.sources,
+            ...albumEv.sources,
+            ...answered.urls,
+          ].slice(0, 8),
         }),
       );
     }

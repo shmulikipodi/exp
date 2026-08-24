@@ -457,6 +457,7 @@ button.ghost:hover { color: var(--dim); background: none; }
   color: var(--accent);
 }
 .answer p { font: 15px/1.6 var(--serif); color: #d3cbc0; margin: 0; }
+.answer .sources { margin-top: 12px; margin-bottom: 0; }
 
 .conversation {
   display: flex;
