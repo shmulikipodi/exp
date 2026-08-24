@@ -204,7 +204,9 @@ export default async function handler(req: any, res: any) {
     if (!title || !artist) {
       return res.end(JSON.stringify(await describePool([])));
     }
-    return res.end(JSON.stringify(await gather(title, artist, q.get("isrc") ?? "")));
+    return res.end(
+        JSON.stringify(await gather(title, artist, q.get("isrc") ?? "", q.get("album") ?? "")),
+      );
   }
 
   if (req.method !== "POST") {
@@ -280,7 +282,7 @@ export default async function handler(req: any, res: any) {
       );
     }
 
-    const evidence = await gather(title, artists[0], (body.isrc ?? "").trim());
+    const evidence = await gather(title, artists[0], (body.isrc ?? "").trim(), body.album ?? "");
     const hebrew = body.lang === "he";
     const evidenceBlock = evidence.text
       ? `EVIDENCE\n${evidence.text}\n\nEND EVIDENCE\n\n`

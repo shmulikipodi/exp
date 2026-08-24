@@ -2,9 +2,14 @@
 // pasted into the app (sent per request, never stored server-side) and the
 // GEMINI_API_KEY / _2 … _9 environment slots. User keys are tried first.
 //
-// A key that reports exhaustion is put on a cooldown so later requests skip it
-// instead of paying a round-trip to rediscover it's empty. Google tells us how long
-// to wait; we believe it, within reason.
+// A key that reports exhaustion is put on a cooldown so later requests skip it instead
+// of paying a round-trip to rediscover it's empty.
+//
+// The free tier's cap is GenerateRequestsPerDayPerProjectPerModel — per DAY, per model.
+// Google still returns a short "retry in 43s" hint for it, which is misleading: waiting
+// achieves nothing. The cooldown exists to stop us re-trying a spent key within a
+// request, not to wait out a limit that lifts tomorrow. Because the cap is per model,
+// the caller falls through to another model, which has its own separate allowance.
 
 let cursor = 0;
 
@@ -14,11 +19,6 @@ const cooling = new Map<string, number>();
 const MIN_COOLDOWN_MS = 30_000;
 const MAX_COOLDOWN_MS = 20 * 60_000;
 const DEFAULT_COOLDOWN_MS = 90_000;
-// The free tier's cap is per minute, not per day. When every key is inside that
-// window the right answer is to wait it out — the caller is already waiting twenty
-// seconds for the model, and a short pause beats an error telling them to go and
-// create Google Cloud projects they don't need.
-const RATE_WAIT_MAX_MS = 50_000;
 
 export function keyPool(prefix = "GEMINI", extra: string[] = []): string[] {
   const keys: string[] = extra.map((k) => k.trim()).filter(Boolean);
@@ -41,6 +41,15 @@ function isTransient(status: number, message: string): boolean {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const TRANSIENT_ATTEMPTS = 3;
+
+/** A typo'd paste. Skip it and carry on — one bad key must not take down a working
+ *  pool. Until user-supplied keys actually reached this function, it could not happen. */
+function isBadKey(status: number, message: string): boolean {
+  return (
+    (status === 400 || status === 403) &&
+    /api key not valid|api_key_invalid|invalid api key/i.test(message)
+  );
+}
 
 function isExhausted(status: number, message: string): boolean {
   if (status === 429) return true;
@@ -111,6 +120,12 @@ export async function withKey<T>(
             continue;
           }
           break; // out of patience with this key — try the next one
+        }
+
+        if (isBadKey(e.status ?? 0, e.message)) {
+          // Not worth retrying this hour, but never worth failing the request over.
+          cooling.set(`${scope}|${key}`, Date.now() + MAX_COOLDOWN_MS);
+          break;
         }
 
         if (!isExhausted(e.status ?? 0, e.message)) throw err;

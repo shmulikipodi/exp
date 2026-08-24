@@ -51,26 +51,33 @@ async function geminiOnce(
   return withKey(
     "GEMINI",
     async (key) => {
-    const res = await fetch(GEMINI(model), {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: system }] },
-        contents: [{ role: "user", parts: [{ text: user }] }],
-        ...(search ? { tools: [{ google_search: {} }] } : {}),
-        generationConfig: { temperature: 0.3 },
-      }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      const e = new Error(json?.error?.message ?? `Gemini ${res.status}`) as Error & {
-        status?: number;
-      };
-      e.status = res.status;
-      throw e;
-    }
-    return json;
-  });
+      const res = await fetch(GEMINI(model), {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: "user", parts: [{ text: user }] }],
+          ...(search ? { tools: [{ google_search: {} }] } : {}),
+          generationConfig: { temperature: 0.3 },
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const e = new Error(json?.error?.message ?? `Gemini ${res.status}`) as Error & {
+          status?: number;
+        };
+        e.status = res.status;
+        throw e;
+      }
+      return json;
+    },
+    // Keys pasted into the app arrive here. Dropping them meant the key panel could
+    // report a key as valid while generation insisted there was none — invisible to
+    // anyone whose environment keys covered for it.
+    extra,
+    // Cooldowns are per key AND per model: a key spent on one model is fine on another.
+    model,
+  );
 }
 
 async function geminiCall(

@@ -754,10 +754,11 @@ export default function App() {
     setSavedId(next);
   }, [draft]);
 
-  if (!savedId && !DEMO) {
-    return (
-      <main className="setup">
-        <div className="controls">
+  // One copy. It was pasted into all three screens, and two of the three had picked up
+  // broken indentation on the way — the usual evidence of copy-paste.
+  const chrome = (
+    <>
+      <div className="controls">
         <button onClick={() => setShowHistory(true)}>{t.historyButton(historyCount)}</button>
         <button onClick={() => setShowKeys(true)}>{t.keysButton(keyCount)}</button>
         <button onClick={toggleLang}>{t.other}</button>
@@ -777,6 +778,13 @@ export default function App() {
           }}
         />
       )}
+    </>
+  );
+
+  if (!savedId && !DEMO) {
+    return (
+      <main className="setup">
+      {chrome}
         <h1>exp</h1>
         <p>{t.tagline}</p>
         <ol>
@@ -808,26 +816,7 @@ export default function App() {
   if (!connected && !DEMO) {
     return (
       <main className="setup">
-        <div className="controls">
-        <button onClick={() => setShowHistory(true)}>{t.historyButton(historyCount)}</button>
-        <button onClick={() => setShowKeys(true)}>{t.keysButton(keyCount)}</button>
-        <button onClick={toggleLang}>{t.other}</button>
-      </div>
-      {showKeys && <Keys t={t} onClose={closeKeys} />}
-      {showHistory && (
-        <History
-          t={t}
-          onOpen={(entry, notes) => {
-            setViewing({ entry, notes: notes as Notes });
-            setShowHistory(false);
-            streamRef.current?.scrollTo({ top: 0 });
-          }}
-          onClose={() => {
-            setShowHistory(false);
-            setHistoryCount(readHistory().length);
-          }}
-        />
-      )}
+      {chrome}
         <h1>exp</h1>
         <p>{t.connectPrompt}</p>
         {error && <p className="error">{shownError}</p>}
@@ -849,26 +838,7 @@ export default function App() {
 
   return (
     <main className="app stage" style={accent ? ({ "--h": accent } as React.CSSProperties) : undefined}>
-      <div className="controls">
-        <button onClick={() => setShowHistory(true)}>{t.historyButton(historyCount)}</button>
-        <button onClick={() => setShowKeys(true)}>{t.keysButton(keyCount)}</button>
-        <button onClick={toggleLang}>{t.other}</button>
-      </div>
-      {showKeys && <Keys t={t} onClose={closeKeys} />}
-      {showHistory && (
-        <History
-          t={t}
-          onOpen={(entry, notes) => {
-            setViewing({ entry, notes: notes as Notes });
-            setShowHistory(false);
-            streamRef.current?.scrollTo({ top: 0 });
-          }}
-          onClose={() => {
-            setShowHistory(false);
-            setHistoryCount(readHistory().length);
-          }}
-        />
-      )}
+      {chrome}
       {track?.art && <div className="wash" style={{ backgroundImage: `url(${track.art})` }} />}
 
       {!track && (

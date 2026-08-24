@@ -135,13 +135,24 @@ async function describeRecording(
   return { text: body, sources: [[url, `MusicBrainz — ${rec.title}`]] };
 }
 
-async function wikipedia(title: string, artist: string): Promise<Evidence> {
+async function wikipedia(title: string, artist: string, album = ""): Promise<Evidence> {
   const term = encodeURIComponent(`${title} ${artist} song`);
   const search = await json(
-    `${WP}?action=query&list=search&srsearch=${term}&srlimit=3&format=json&origin=*`,
+    `${WP}?action=query&list=search&srsearch=${term}&srlimit=5&format=json&origin=*`,
   );
-  const page = (search?.query?.search ?? [])[0];
+  const results = search?.query?.search ?? [];
+
+  // The ISRC path exists so a same-titled song can't poison the credits. Taking search
+  // result #1 on trust reopened that door on the other side: nine thousand characters
+  // about the wrong record, under a prompt that says evidence outranks memory. A wrong
+  // article is worse than no article, so an unrecognisable one is refused.
+  const songPage = results.find((r: any) => sameSong(r?.title, title));
+  const albumPage = album
+    ? results.find((r: any) => sameSong(r?.title, album))
+    : undefined;
+  const page = songPage ?? albumPage;
   if (!page?.title) return { text: "", sources: [] };
+  const aboutTheSong = Boolean(songPage);
 
   const extract = await json(
     `${WP}?action=query&prop=extracts&explaintext=1&redirects=1&format=json&origin=*&titles=${encodeURIComponent(page.title)}`,
@@ -152,21 +163,50 @@ async function wikipedia(title: string, artist: string): Promise<Evidence> {
 
   const url = `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, "_"))}`;
   return {
-    text: `Wikipedia — ${page.title}\n${text.slice(0, 7000)}`,
+    text:
+      `Wikipedia — ${page.title}\n` +
+      (aboutTheSong
+        ? ""
+        : `NOTE: this article is about the album, not this specific track. Do not assume ` +
+          `anything in it describes the recording that is playing unless it says so.\n`) +
+      text.slice(0, 7000),
     sources: [[url, `Wikipedia — ${page.title}`]],
   };
 }
 
 /** Both sources, in parallel, never throwing. Empty text means we found nothing. */
-export async function gather(title: string, artist: string, isrc = ""): Promise<Evidence> {
+// 3. Every question and every "more notes" for the same track was re-running the whole
+// gather — four MusicBrainz round-trips with 1.1s of deliberate spacing between them,
+// for credits already in hand. Warm instances keep this; a cold one just pays once.
+const CACHE_TTL_MS = 30 * 60_000;
+const CACHE_MAX = 60;
+const evidenceCache = new Map<string, { at: number; value: Evidence }>();
+
+export async function gather(
+  title: string,
+  artist: string,
+  isrc = "",
+  album = "",
+): Promise<Evidence> {
+  const key = `${isrc}|${title}|${artist}|${album}`.toLowerCase();
+  const hit = evidenceCache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
+
   const [mb, wp] = await Promise.all([
     musicbrainz(title, artist, isrc).catch(() => ({ text: "", sources: [] as [string, string][] })),
-    wikipedia(title, artist).catch(() => ({ text: "", sources: [] as [string, string][] })),
+    wikipedia(title, artist, album).catch(() => ({ text: "", sources: [] as [string, string][] })),
   ]);
-  return {
+
+  const value: Evidence = {
     text: [mb.text, wp.text].filter(Boolean).join("\n\n---\n\n"),
     sources: [...mb.sources, ...wp.sources],
   };
+
+  evidenceCache.set(key, { at: Date.now(), value });
+  if (evidenceCache.size > CACHE_MAX) {
+    evidenceCache.delete(evidenceCache.keys().next().value as string);
+  }
+  return value;
 }
 
 /* ---------- artist and album, gathered separately ---------- */
