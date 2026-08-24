@@ -4,6 +4,7 @@ import { ground } from "./providers.js";
 import { gather, gatherAlbum, gatherArtist } from "./evidence.js";
 import { keyPool, poolStatus } from "./keys.js";
 import { fetchLyrics } from "./lyrics.js";
+import { findEpisode } from "./podcast.js";
 
 const MODEL = "gemini-3.6-flash";
 
@@ -421,7 +422,19 @@ export default async function handler(req: any, res: any) {
     // measured. A note about a line can take that line's real timestamp instead of the
     // model's estimate, which is the difference between a dot you can trust and a dot
     // you sit waiting at.
-    const lyrics = await fetchLyrics(title, artists[0], body.album ?? "", body.durationMs ?? 0);
+    // Both are optional extras and neither blocks the other.
+    const [lyrics, episode] = await Promise.all([
+      fetchLyrics(title, artists[0], body.album ?? "", body.durationMs ?? 0),
+      findEpisode(title, artists[0]).catch(() => null),
+    ]);
+    const podcastBlock = episode
+      ? `THE ARTIST ON THIS SONG\nSong Exploder made an episode about this exact track: ` +
+        `"${episode.title}". The show is the musician taking their own song apart, so ` +
+        `anything here is first-hand — better than a catalogue on intent and process, ` +
+        `though people misremember their own sessions. Say when something comes from it.\n` +
+        `${episode.summary}\n\nEND\n\n`
+      : "";
+
     const lyricBlock = lyrics.found
       ? lyrics.synced
         ? `LYRICS, with the time each line is sung. When a note is about a line, or about ` +
@@ -466,7 +479,7 @@ export default async function handler(req: any, res: any) {
         (albumEv.text ? `EVIDENCE ABOUT THE ALBUM\n${albumEv.text}\n\nEND\n\n` : "");
 
       const asked =
-        `${facts}\n\n${wide}${lyricBlock}` +
+        `${facts}\n\n${wide}${podcastBlock}${lyricBlock}` +
         (body.about
           ? `The reader is asking about this note:\n"${body.about.title}" — ${body.about.body}\n\n`
           : "") +
@@ -528,6 +541,7 @@ export default async function handler(req: any, res: any) {
         ? `Played just before this, most recent first:\n${recent.map((r) => `- ${r}`).join("\n")}\n\n`
         : "No listening history yet this session — set thread to null.\n\n") +
       evidenceBlock +
+      podcastBlock +
       lyricBlock +
       wideBlock +
       (rejected.length
@@ -588,6 +602,13 @@ export default async function handler(req: any, res: any) {
       for (let i = 2; seen.has(title); i++) title = `${n.title} (${i})`;
       n.title = title;
       seen.add(title);
+    }
+
+    if (episode) {
+      evidence.sources = [
+        [episode.link, `Song Exploder — ${episode.title}`] as [string, string],
+        ...evidence.sources,
+      ].slice(0, 8);
     }
 
     const headline = typeof parsed.headline === "string" ? parsed.headline.trim() : "";
