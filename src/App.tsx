@@ -135,6 +135,14 @@ function matchesLang(notes: Notes, lang: Lang): boolean {
   );
 }
 
+/** Answers written before the language was enforced sit inside otherwise-valid entries.
+ *  Dropping just those beats discarding a good set of notes along with them. */
+function pruneAnswers(notes: Notes | null, lang: Lang): Notes | null {
+  if (!notes || lang !== "he" || !notes.answers?.length) return notes;
+  const kept = notes.answers.filter((a) => /[\u0590-\u05FF]/.test(a.body));
+  return kept.length === notes.answers.length ? notes : { ...notes, answers: kept };
+}
+
 const mmss = (ms: number) => {
   const s = Math.max(0, Math.round(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -381,7 +389,7 @@ export default function App() {
     setLoading(true);
 
     (async () => {
-      const stored = (await loadNotes(playing.id, lang)) as Notes | null;
+      const stored = pruneAnswers((await loadNotes(playing.id, lang)) as Notes | null, lang);
       if (stored && matchesLang(stored, lang)) {
         cache.current.set(key, stored);
         // Prefetched notes are written unlisted; playing the track is what lists it.
@@ -422,6 +430,8 @@ export default function App() {
         cache.current.set(key, data);
         setNotes(data);
         if (!fresh) return;
+        // saveNotes awaits the store opening before it touches the index, so reading
+        // the count on the next line always saw the length from before the save.
         saveNotes(
           {
             id: playing.id,
@@ -433,8 +443,7 @@ export default function App() {
             at: Date.now(),
           },
           data,
-        );
-        setHistoryCount(readHistory().length);
+        ).then(() => setHistoryCount(readHistory().length));
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));

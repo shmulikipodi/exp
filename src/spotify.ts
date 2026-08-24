@@ -13,6 +13,7 @@ const LS = {
   clientId: "ln.clientId",
   verifier: "ln.verifier",
   access: "ln.access",
+  state: "ln.state",
   refresh: "ln.refresh",
   expires: "ln.expires",
 };
@@ -45,7 +46,9 @@ function base64url(buf: ArrayBuffer): string {
 
 export async function login() {
   const verifier = randomString(64);
+  const state = randomString(16);
   localStorage.setItem(LS.verifier, verifier);
+  localStorage.setItem(LS.state, state);
   const challenge = base64url(
     await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
   );
@@ -55,6 +58,7 @@ export async function login() {
     redirect_uri: redirectUri(),
     code_challenge_method: "S256",
     code_challenge: challenge,
+    state,
     scope: SCOPES,
   });
   location.href = `${AUTH}?${params}`;
@@ -68,8 +72,30 @@ function store(json: any) {
 
 /** Exchanges ?code= for tokens. Returns true if we just completed a login. */
 export async function completeLogin(): Promise<boolean> {
-  const code = new URLSearchParams(location.search).get("code");
+  const params = new URLSearchParams(location.search);
+
+  // Pressing Cancel on Spotify's consent screen sent you back here to a Connect button
+  // with no idea why nothing had happened.
+  const denied = params.get("error");
+  if (denied) {
+    history.replaceState({}, "", "/");
+    throw new Error(
+      denied === "access_denied" ? "Spotify access was declined." : `Spotify: ${denied}`,
+    );
+  }
+
+  const code = params.get("code");
   if (!code) return false;
+
+  // The state parameter is what stops someone handing you a link that completes an
+  // authorisation you did not start.
+  const expected = localStorage.getItem(LS.state);
+  localStorage.removeItem(LS.state);
+  if (expected && params.get("state") !== expected) {
+    history.replaceState({}, "", "/");
+    throw new Error("Login could not be verified. Try connecting again.");
+  }
+
   const verifier = localStorage.getItem(LS.verifier) ?? "";
   const res = await fetch(TOKEN, {
     method: "POST",

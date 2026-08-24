@@ -390,6 +390,16 @@ export default async function handler(req: any, res: any) {
         body: String(n.body).trim(),
       }));
 
+    // Titles identify a note when it is questioned or marked wrong, so two notes may
+    // not share one — deleting a duplicate would take its twin with it.
+    const seen = new Set<string>();
+    for (const n of notes) {
+      let title = n.title;
+      for (let i = 2; seen.has(title); i++) title = `${n.title} (${i})`;
+      n.title = title;
+      seen.add(title);
+    }
+
     res.end(
       JSON.stringify({
         headline: typeof parsed.headline === "string" ? parsed.headline.trim() : "",

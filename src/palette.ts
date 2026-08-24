@@ -49,7 +49,10 @@ export async function accentFrom(url: string): Promise<string | null> {
       return weights[top] > 0 ? top : -1;
     };
 
-    const best = sample(0.22, 0.12, 0.93) >= 0 ? sample(0.22, 0.12, 0.93) : sample(0.08, 0.05, 0.97);
+    // Ran the strict pass twice: once to test it, once to use it — two full sweeps of
+    // the bitmap on every track change, for one answer.
+    const strict = sample(0.22, 0.12, 0.93);
+    const best = strict >= 0 ? strict : sample(0.08, 0.05, 0.97);
     if (best < 0) return null;
     return `${Math.round((best + 0.5) * (360 / BUCKETS))}`;
   } catch {

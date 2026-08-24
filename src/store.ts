@@ -44,28 +44,43 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-/** Anything written before the move to IndexedDB comes across on first run. */
-async function migrateFromLocalStorage(store: IDBObjectStore) {
+/** Anything written before the move to IndexedDB, read synchronously. */
+function readLegacyRows(): { key: string; entry: Entry; notes: unknown }[] {
   let legacy: Entry[] = [];
   try {
     const raw = JSON.parse(localStorage.getItem("ln.history") ?? "[]");
     legacy = Array.isArray(raw) ? raw : [];
   } catch {
-    return;
+    return [];
   }
-  if (legacy.length === 0) return;
 
+  const rows: { key: string; entry: Entry; notes: unknown }[] = [];
   for (const entry of legacy) {
     try {
       const raw = localStorage.getItem(`ln.n.${entry.id}.${entry.lang}`);
-      if (!raw) continue;
-      store.put({ key: key(entry.id, entry.lang), entry, notes: JSON.parse(raw) });
-      localStorage.removeItem(`ln.n.${entry.id}.${entry.lang}`);
+      if (raw) rows.push({ key: key(entry.id, entry.lang), entry, notes: JSON.parse(raw) });
     } catch {
       /* one unreadable row shouldn't stop the rest */
     }
   }
+  return rows;
+}
+
+function clearLegacy(rows: { entry: Entry }[]) {
+  for (const { entry } of rows) localStorage.removeItem(`ln.n.${entry.id}.${entry.lang}`);
   localStorage.removeItem("ln.history");
+}
+
+/** Runs synchronous work in one transaction and resolves when it commits. */
+function commit(mode: IDBTransactionMode, work: (store: IDBObjectStore) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!db) return reject(new Error("no database"));
+    const t = db.transaction(STORE, mode);
+    work(t.objectStore(STORE));
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
+  });
 }
 
 export function ready(): Promise<void> {
@@ -74,10 +89,22 @@ export function ready(): Promise<void> {
   readyPromise = (async () => {
     try {
       db = await openDb();
-      const tx = db.transaction(STORE, "readwrite");
-      const store = tx.objectStore(STORE);
-      await migrateFromLocalStorage(store);
-      const rows = await request(store.getAll());
+
+      // Everything a transaction needs is gathered BEFORE it opens. An IndexedDB
+      // transaction deactivates when control returns to the event loop, so awaiting
+      // anything while one is live can kill it — and the catch below would then turn
+      // persistence off for the whole session without saying a word.
+      const legacy = readLegacyRows();
+      if (legacy.length > 0) {
+        await commit("readwrite", (store) => {
+          for (const row of legacy) store.put(row);
+        });
+        clearLegacy(legacy);
+      }
+
+      const rows = await request(
+        db.transaction(STORE, "readonly").objectStore(STORE).getAll(),
+      );
       index = rows
         .map((r: { entry: Entry }) => r.entry)
         .filter(Boolean)
