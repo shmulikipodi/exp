@@ -122,8 +122,10 @@ async function post<T>(payload: Record<string, unknown>): Promise<T> {
  *  back would keep serving that mistake forever, so the cache is checked, not trusted. */
 function matchesLang(notes: Notes, lang: Lang): boolean {
   if (lang !== "he") return true;
-  const text = notes.headline + notes.notes.map((n) => n.title + n.body).join(" ");
-  return /[\u0590-\u05FF]/.test(text);
+  const hebrew = (s: string) => /[\u0590-\u05FF]/.test(s);
+  // Every note has to pass. A set that is half Hebrew and half English is exactly the
+  // thing that kept surviving, because "contains Hebrew somewhere" was true of it.
+  return hebrew(notes.headline) && notes.notes.every((n) => hebrew(n.body));
 }
 
 const mmss = (ms: number) => {

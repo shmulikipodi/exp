@@ -152,6 +152,14 @@ function looksHebrew(text: string): boolean {
   return /[\u0590-\u05FF]/.test(text);
 }
 
+/** Every note, not just some. The model happily writes half a set in Hebrew and the
+ *  rest in English, and "contains Hebrew somewhere" waves that straight through. */
+function allHebrew(parsed: any): boolean {
+  if (!looksHebrew(String(parsed?.headline ?? ""))) return false;
+  const notes = Array.isArray(parsed?.notes) ? parsed.notes : [];
+  return notes.every((n: any) => looksHebrew(String(n?.body ?? "")));
+}
+
 export default async function handler(req: any, res: any) {
   res.setHeader("content-type", "application/json");
 
@@ -272,10 +280,11 @@ export default async function handler(req: any, res: any) {
     let parsed = parseNotes(grounded.text);
 
     // Verify rather than hope. One retry, with the instruction made blunt.
-    if (hebrew && !looksHebrew(String(parsed.headline ?? "") + JSON.stringify(parsed.notes ?? []))) {
+    if (hebrew && !allHebrew(parsed)) {
       grounded = await ground(
         `${HEBREW_HEADER}${SYSTEM}`,
-        `${askedIn}\n\nYour previous attempt was written in English. That was wrong. Write it in Hebrew.`,
+        `${askedIn}\n\nYour previous attempt had notes written in English. That was wrong. ` +
+          `EVERY note — every title and every body — must be in Hebrew, not just some of them.`,
         MODEL,
         userKeys,
       );
@@ -284,6 +293,9 @@ export default async function handler(req: any, res: any) {
 
     const notes = (Array.isArray(parsed.notes) ? parsed.notes : [])
       .filter((n: any) => n && typeof n.body === "string" && n.body.trim())
+      // After a retry, a stray English note is dropped rather than shown. Fewer notes
+      // in the right language beats a set that is half in the wrong one.
+      .filter((n: any) => !hebrew || looksHebrew(String(n.body)))
       .map((n: any) => ({
         kind: String(n.kind ?? "origin"),
         at: typeof n.at === "number" && n.at >= 0 && n.at <= 1 ? n.at : null,
