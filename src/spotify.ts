@@ -97,11 +97,25 @@ export function logout() {
   for (const k of [LS.access, LS.refresh, LS.expires]) localStorage.removeItem(k);
 }
 
+// Spotify rotates the refresh token on every use, so two refreshes racing each other
+// means the second presents a token the first already retired — and the session dies
+// for no reason. The app fires several requests at once (poll, queue, album details,
+// transport), so this is not hypothetical.
+let refreshing: Promise<string> | null = null;
+
 async function accessToken(): Promise<string> {
   const token = localStorage.getItem(LS.access);
   const expires = Number(localStorage.getItem(LS.expires) ?? 0);
   if (token && Date.now() < expires) return token;
 
+  if (refreshing) return refreshing;
+  refreshing = refreshToken().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+async function refreshToken(): Promise<string> {
   const refresh = localStorage.getItem(LS.refresh);
   if (!refresh) throw new Error("not connected");
 
@@ -186,7 +200,7 @@ async function control(path: string, method: "PUT" | "POST"): Promise<ControlRes
 
   const res = await fetch(`https://api.spotify.com/v1/me/player/${path}`, {
     method,
-    headers: { authorization: `Bearer ${token}`, "content-length": "0" },
+    headers: { authorization: `Bearer ${token}` },
   });
 
   if (res.status === 204 || res.ok) return "ok";

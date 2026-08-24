@@ -25,6 +25,7 @@ import { History } from "./History";
 import {
   type Entry,
   forget,
+  touch,
   history as readHistory,
   loadNotes,
   ready as storeReady,
@@ -125,7 +126,13 @@ function matchesLang(notes: Notes, lang: Lang): boolean {
   const hebrew = (s: string) => /[\u0590-\u05FF]/.test(s);
   // Every note has to pass. A set that is half Hebrew and half English is exactly the
   // thing that kept surviving, because "contains Hebrew somewhere" was true of it.
-  return hebrew(notes.headline) && notes.notes.every((n) => hebrew(n.body));
+  //
+  // An empty set passes: a record the model had nothing to say about would otherwise
+  // fail this check on every single play and be regenerated forever.
+  if (notes.notes.length === 0) return true;
+  return (
+    (!notes.headline || hebrew(notes.headline)) && notes.notes.every((n) => hebrew(n.body))
+  );
 }
 
 const mmss = (ms: number) => {
@@ -164,6 +171,7 @@ export default function App() {
   const fetchedFor = useRef<string>("");
   const cache = useRef(new Map<string, Notes>());
   const streamRef = useRef<HTMLElement | null>(null);
+  const viewingRef = useRef<string>("");
   const lastManual = useRef(0);
 
   const t = STRINGS[lang];
@@ -194,7 +202,20 @@ export default function App() {
   // Poll Spotify for truth; tick locally in between so the bar moves smoothly.
   // The loop reschedules itself, so the cadence can change without restarting it.
   const latest = useRef({ playing, progress });
-  latest.current = { playing, progress };
+  // Written after render, not during it: mutating a ref mid-render is not safe under
+  // concurrent rendering, and oxlint has been saying so.
+  useEffect(() => {
+    latest.current = { playing, progress };
+  });
+
+  // What the reader is actually looking at, for work that finishes later.
+  const onScreen = useRef<{ id: string; lang: string }>({ id: "", lang: "en" });
+  useEffect(() => {
+    onScreen.current = viewing
+      ? { id: viewing.entry.id, lang: viewing.entry.lang }
+      : { id: playing?.id ?? "", lang };
+    viewingRef.current = viewing ? viewing.entry.id : "";
+  }, [viewing, playing?.id, lang]);
 
   useEffect(() => {
     if (!connected && !DEMO) return;
@@ -318,6 +339,7 @@ export default function App() {
           at: Date.now(),
         },
         data,
+        false, // not heard yet — it is only next in the queue
       );
     })();
 
@@ -362,6 +384,16 @@ export default function App() {
       const stored = (await loadNotes(playing.id, lang)) as Notes | null;
       if (stored && matchesLang(stored, lang)) {
         cache.current.set(key, stored);
+        // Prefetched notes are written unlisted; playing the track is what lists it.
+        touch({
+          id: playing.id,
+          lang,
+          title: playing.title,
+          artists: playing.artists,
+          album: playing.album,
+          art: playing.art,
+          at: Date.now(),
+        }).then(() => setHistoryCount(readHistory().length));
         return stored;
       }
       if (stored) await forget(playing.id, lang); // wrong language — write it again
@@ -530,32 +562,32 @@ export default function App() {
 
   // Notes are no longer a finished document — they can grow, shrink and be questioned.
   // Every change is written straight back to storage, so it survives the track change.
-  const persist = useCallback(
-    (next: Notes) => {
-      if (viewing) {
-        setViewing({ entry: viewing.entry, notes: next });
-        cache.current.set(`${viewing.entry.id}:${viewing.entry.lang}`, next);
-        saveNotes(viewing.entry, next);
-        return;
-      }
-      if (!playing) return;
-      setNotes(next);
-      cache.current.set(`${playing.id}:${lang}`, next);
-      saveNotes(
-        {
-          id: playing.id,
-          lang,
-          title: playing.title,
-          artists: playing.artists,
-          album: playing.album,
-          art: playing.art,
-          at: Date.now(),
-        },
-        next,
-      );
-    },
-    [viewing, playing, lang],
-  );
+  /** The track an in-flight question belongs to, captured when it is asked. */
+  const targetOf = useCallback((): Entry | null => {
+    if (viewing) return viewing.entry;
+    if (!playing) return null;
+    return {
+      id: playing.id,
+      lang,
+      title: playing.title,
+      artists: playing.artists,
+      album: playing.album,
+      art: playing.art,
+      at: Date.now(),
+    };
+  }, [viewing, playing, lang]);
+
+  // Answers take twenty seconds. The track can change in that time, and writing the
+  // result into whatever is on screen now would both lose the answer and replace the
+  // new track's notes with the old track's. It always saves; it only redraws if the
+  // reader is still looking at the thing they asked about.
+  const persist = useCallback((next: Notes, target: Entry) => {
+    cache.current.set(`${target.id}:${target.lang}`, next);
+    saveNotes(target, next);
+    if (onScreen.current.id !== target.id || onScreen.current.lang !== target.lang) return;
+    if (target.id === viewingRef.current) setViewing((v) => (v ? { ...v, notes: next } : v));
+    else setNotes(next);
+  }, []);
 
   const subject = useCallback(() => {
     if (viewing) {
@@ -579,7 +611,8 @@ export default function App() {
   const current = viewing ? viewing.notes : notes;
 
   const askMore = useCallback(async () => {
-    if (!current) return;
+    const target = targetOf();
+    if (!current || !target) return;
     setBusy("more");
     setError("");
     try {
@@ -596,7 +629,7 @@ export default function App() {
       if (fresh.length === 0) {
         setError(t.nothingMore);
       } else {
-        persist({ ...current, notes: [...current.notes, ...fresh] });
+        persist({ ...current, notes: [...current.notes, ...fresh] }, target);
         setRevealAll(true);
       }
     } catch (e) {
@@ -604,26 +637,31 @@ export default function App() {
     } finally {
       setBusy("");
     }
-  }, [current, subject, persist, t]);
+  }, [current, subject, persist, targetOf, t]);
 
   // Marking a note wrong removes it and records why, so a later regeneration is told
   // not to produce it again. The record of what it got wrong is the valuable half.
   const rejectNote = useCallback(
     (note: Note) => {
-      if (!current) return;
-      persist({
-        ...current,
-        notes: current.notes.filter((n) => n.title !== note.title),
-        answers: (current.answers ?? []).filter((a) => a.about !== note.title),
-        rejected: [...new Set([...(current.rejected ?? []), `${note.title}: ${note.body}`])],
-      });
+      const target = targetOf();
+      if (!current || !target) return;
+      persist(
+        {
+          ...current,
+          notes: current.notes.filter((n) => n.title !== note.title),
+          answers: (current.answers ?? []).filter((a) => a.about !== note.title),
+          rejected: [...new Set([...(current.rejected ?? []), `${note.title}: ${note.body}`])],
+        },
+        target,
+      );
     },
-    [current, persist],
+    [current, persist, targetOf],
   );
 
   const askTopic = useCallback(
     async (topic: "artist" | "album") => {
-      if (!current) return;
+      const target = targetOf();
+      if (!current || !target) return;
       const who = viewing ? viewing.entry.artists.join(", ") : (playing?.artists ?? []).join(", ");
       const album = viewing ? viewing.entry.album : (playing?.album ?? "");
       const heading = topic === "artist" ? t.artistHeading(who) : t.albumHeading(album);
@@ -638,7 +676,8 @@ export default function App() {
           album,
           keys: liveKeys(),
         });
-        persist({
+        persist(
+          {
           ...current,
           answers: [
             // One answer per subject — asking twice replaces rather than stacks.
@@ -650,7 +689,9 @@ export default function App() {
               body: data.answer,
             },
           ],
-        });
+          },
+          target,
+        );
         requestAnimationFrame(() => {
           const el = streamRef.current;
           el?.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
@@ -661,12 +702,13 @@ export default function App() {
         setBusy("");
       }
     },
-    [current, subject, persist, viewing, playing, t],
+    [current, subject, persist, targetOf, viewing, playing, t],
   );
 
   const ask = useCallback(
     async (question: string, about: Note | null) => {
-      if (!current || !question.trim()) return;
+      const target = targetOf();
+      if (!current || !target || !question.trim()) return;
       const tag = about ? about.title : "general";
       setBusy(tag);
       setError("");
@@ -678,18 +720,21 @@ export default function App() {
           about: about ? { title: about.title, body: about.body } : null,
           keys: liveKeys(),
         });
-        persist({
-          ...current,
-          answers: [
-            ...(current.answers ?? []),
-            {
-              id: `${Date.now()}`,
-              question: question.trim(),
-              about: about ? about.title : null,
-              body: data.answer,
-            },
-          ],
-        });
+        persist(
+          {
+            ...current,
+            answers: [
+              ...(current.answers ?? []),
+              {
+                id: `${Date.now()}`,
+                question: question.trim(),
+                about: about ? about.title : null,
+                body: data.answer,
+              },
+            ],
+          },
+          target,
+        );
         setDraftQ("");
         setAskingAbout(null);
         if (!about) {
@@ -705,7 +750,7 @@ export default function App() {
         setBusy("");
       }
     },
-    [current, subject, persist],
+    [current, subject, persist, targetOf],
   );
 
   // Quota exhaustion is the one failure a user can actually act on, so it gets said
@@ -726,6 +771,7 @@ export default function App() {
   // Every control funnels through here so the free-account and stale-scope cases are
   // handled once. Spotify answers 403 for both, and they need opposite responses.
   const run = useCallback(async (action: () => Promise<string>, optimistic?: () => void) => {
+    const before = latest.current.playing;
     optimistic?.();
     const result = await action();
     if (result === "ok") {
@@ -743,8 +789,9 @@ export default function App() {
     } else {
       setControlNote("");
     }
-    // Whatever we guessed optimistically was wrong — let the next poll correct it.
-    setPlaying((p) => (p ? { ...p } : p));
+    // The optimistic guess was wrong. Put it back rather than leaving a paused-looking
+    // button on a playing track until the next poll happens to correct it.
+    if (before) setPlaying(before);
   }, [t]);
 
   const save = useCallback(() => {

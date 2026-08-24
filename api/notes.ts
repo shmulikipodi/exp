@@ -53,7 +53,7 @@ Return ONLY a JSON object, no markdown fence:
 }`;
 
 type Body = {
-  mode?: "notes" | "more" | "ask";
+  mode?: "notes" | "more" | "ask" | "artist" | "album";
   have?: { title: string; body: string }[];
   rejected?: string[];
   question?: string;
@@ -106,6 +106,19 @@ function readJson(req: any): Promise<Body> {
     });
     req.on("error", reject);
   });
+}
+
+/** For answers, prose is a usable result — better than throwing away a good sentence
+ *  because it arrived without braces around it. */
+function parseAnswer(text: string): string {
+  try {
+    const parsed = parseNotes(text);
+    const answer = String(parsed?.answer ?? "").trim();
+    if (answer) return answer;
+  } catch {
+    /* not JSON — the raw text is the answer */
+  }
+  return text.replace(/```(?:json)?|```/g, "").trim();
 }
 
 /** Models fence JSON even when told not to. Dig the object out. */
@@ -262,21 +275,21 @@ export default async function handler(req: any, res: any) {
           : `Write the description of ${body.album}.`);
 
       let out = await ground(sys, ask, MODEL, userKeys);
-      let parsedOut = parseNotes(out.text);
+      let answerText = parseAnswer(out.text);
 
-      if (body.lang === "he" && !looksHebrew(String(parsedOut.answer ?? ""))) {
+      if (body.lang === "he" && !looksHebrew(answerText)) {
         out = await ground(
           sys,
           `${ask}\n\nYour previous attempt was in English. That was wrong. Write it in Hebrew.`,
           MODEL,
           userKeys,
         );
-        parsedOut = parseNotes(out.text);
+        answerText = parseAnswer(out.text);
       }
 
       return res.end(
         JSON.stringify({
-          answer: String(parsedOut.answer ?? out.text).trim(),
+          answer: answerText,
           sources: [...subject.sources, ...out.urls].slice(0, 6),
         }),
       );
@@ -304,20 +317,21 @@ export default async function handler(req: any, res: any) {
 
       const askSystem = hebrew ? `${HEBREW_HEADER}${ASK_SYSTEM}` : ASK_SYSTEM;
       let answered = await ground(askSystem, asked, MODEL, userKeys);
-      let parsedAnswer = parseNotes(answered.text);
+      let answerText = parseAnswer(answered.text);
 
-      if (hebrew && !looksHebrew(String(parsedAnswer.answer ?? ""))) {
+      if (hebrew && !looksHebrew(answerText)) {
         answered = await ground(
           askSystem,
           `${asked}\n\nYour previous attempt was written in English. That was wrong. Answer in Hebrew.`,
           MODEL,
           userKeys,
         );
-        parsedAnswer = parseNotes(answered.text);
+        answerText = parseAnswer(answered.text);
       }
+
       return res.end(
         JSON.stringify({
-          answer: String(parsedAnswer.answer ?? answered.text).trim(),
+          answer: answerText,
           sources: answered.urls.slice(0, 4),
         }),
       );

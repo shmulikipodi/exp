@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsc -p tsconfig.api.json && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "keys": "bash scripts/push-keys.sh"
+    "keys": "bash scripts/push-keys.sh",
+    "typecheck": "tsc -b && tsc -p tsconfig.api.json"
   },
   "dependencies": {
     "@fontsource-variable/frank-ruhl-libre": "^5.3.0",

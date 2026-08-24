@@ -111,13 +111,19 @@ export async function loadNotes(id: string, lang: string): Promise<unknown | nul
   }
 }
 
-export async function saveNotes(entry: Entry, notes: unknown): Promise<void> {
+/**
+ * `indexed: false` writes the notes without listing the track in history. The queue
+ * prefetch uses it: those notes are for a song that has not been played yet, and a
+ * panel headed "what you've heard" should not be listing songs you haven't.
+ */
+export async function saveNotes(entry: Entry, notes: unknown, indexed = true): Promise<void> {
   await ready();
   if (!db) return;
   try {
     const tx = db.transaction(STORE, "readwrite");
     const store = tx.objectStore(STORE);
     store.put({ key: key(entry.id, entry.lang), entry, notes });
+    if (!indexed) return;
 
     index = [entry, ...index.filter((e) => !(e.id === entry.id && e.lang === entry.lang))];
 
@@ -168,4 +174,23 @@ export async function usage(): Promise<{ count: number; mb: number }> {
 /** Seeds the session thread from what has actually been read, newest first. */
 export function recentStamps(limit = 8): string[] {
   return index.slice(0, limit).map((e) => `${e.artists.join(", ")} — ${e.title}`);
+}
+
+/** Marks a track as actually heard. Prefetched notes are only listed once played. */
+export async function touch(entry: Entry): Promise<void> {
+  await ready();
+  const already = index.find((e) => e.id === entry.id && e.lang === entry.lang);
+  if (already && already.at >= entry.at) return;
+  index = [entry, ...index.filter((e) => !(e.id === entry.id && e.lang === entry.lang))];
+  if (!db) return;
+  try {
+    const store = db.transaction(STORE, "readwrite").objectStore(STORE);
+    const req = store.get(key(entry.id, entry.lang));
+    req.onsuccess = () => {
+      const row = req.result as { notes?: unknown } | undefined;
+      if (row) store.put({ key: key(entry.id, entry.lang), entry, notes: row.notes });
+    };
+  } catch {
+    /* the in-memory index is already right; the row will catch up on the next write */
+  }
 }

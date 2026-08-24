@@ -61,7 +61,7 @@ async function geminiOnce(
           generationConfig: { temperature: 0.3 },
         }),
       });
-      const json = await res.json();
+      const json = (await res.json()) as any;
       if (!res.ok) {
         const e = new Error(json?.error?.message ?? `Gemini ${res.status}`) as Error & {
           status?: number;
@@ -141,7 +141,7 @@ async function geminiOne(
 }
 
 async function groqCall(system: string, user: string): Promise<Grounded> {
-  const data = await withKey("GROQ", async (key) => {
+  const data: any = await withKey("GROQ", async (key) => {
     const res = await fetch(GROQ, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
@@ -154,7 +154,7 @@ async function groqCall(system: string, user: string): Promise<Grounded> {
         ],
       }),
     });
-    const json = await res.json();
+    const json = (await res.json()) as any;
     if (!res.ok) {
       const e = new Error(json?.error?.message ?? `Groq ${res.status}`) as Error & {
         status?: number;
