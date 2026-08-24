@@ -1,0 +1,163 @@
+// Two providers, same shape out. Gemini is preferred when its Search grounding
+// actually has quota; Groq's compound models carry web search on the free tier and
+// are the fallback. Set GROQ_API_KEY to force Groq.
+
+import { withKey } from "./keys.js";
+
+export type Grounded = {
+  text: string;
+  urls: [string, string][];
+  queries: string[];
+  live: boolean; // false = answered from model knowledge, search was unavailable
+};
+
+const GEMINI = (m: string) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
+const GROQ = "https://api.groq.com/openai/v1/chat/completions";
+
+export function provider(): "groq" | "gemini" {
+  return process.env.GROQ_API_KEY ? "groq" : "gemini";
+}
+
+/** Pull every http(s) URL out of an arbitrary response shape. */
+function harvestUrls(node: unknown, out: Map<string, string>, title = ""): void {
+  if (Array.isArray(node)) {
+    for (const n of node) harvestUrls(n, out, title);
+    return;
+  }
+  if (node && typeof node === "object") {
+    const o = node as Record<string, unknown>;
+    const url = (o.url ?? o.uri ?? o.link) as string | undefined;
+    const name = (o.title ?? o.name ?? title) as string | undefined;
+    if (typeof url === "string" && /^https?:\/\//.test(url)) {
+      out.set(url, typeof name === "string" && name ? name : url);
+    }
+    for (const v of Object.values(o)) harvestUrls(v, out, typeof name === "string" ? name : title);
+  }
+}
+
+async function geminiOnce(
+  system: string,
+  user: string,
+  model: string,
+  search: boolean,
+  extra: string[] = [],
+): Promise<any> {
+  return withKey("GEMINI", async (key) => {
+    const res = await fetch(GEMINI(model), {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: "user", parts: [{ text: user }] }],
+        ...(search ? { tools: [{ google_search: {} }] } : {}),
+        generationConfig: { temperature: 0.3 },
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      const e = new Error(json?.error?.message ?? `Gemini ${res.status}`) as Error & {
+        status?: number;
+      };
+      e.status = res.status;
+      throw e;
+    }
+    return json;
+  });
+}
+
+async function geminiCall(
+  system: string,
+  user: string,
+  model: string,
+  extra: string[] = [],
+): Promise<Grounded> {
+  let live = true;
+  let data: any;
+  try {
+    data = await geminiOnce(system, user, model, true, extra);
+  } catch (err) {
+    // No search quota on this key — answer from model knowledge rather than dying.
+    if (!/quota|exhausted|rate limit/i.test((err as Error).message)) throw err;
+    live = false;
+    data = await geminiOnce(
+      `${system}\n\nYou have no live web access. Answer from your own knowledge, and say explicitly when something may have changed since your training cutoff.`,
+      user,
+      model,
+      false,
+      extra,
+    );
+  }
+
+  const meta = data?.candidates?.[0]?.groundingMetadata ?? {};
+  const urls = new Map<string, string>();
+  for (const c of meta.groundingChunks ?? []) {
+    if (c?.web?.uri) urls.set(c.web.uri, c.web.title || c.web.uri);
+  }
+  return {
+    text: (data?.candidates?.[0]?.content?.parts ?? [])
+      .map((p: any) => p.text ?? "")
+      .join("")
+      .trim(),
+    urls: [...urls],
+    queries: meta.webSearchQueries ?? [],
+    live,
+  };
+}
+
+async function groqCall(system: string, user: string): Promise<Grounded> {
+  const data = await withKey("GROQ", async (key) => {
+    const res = await fetch(GROQ, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: "groq/compound",
+        temperature: 0.3,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      const e = new Error(json?.error?.message ?? `Groq ${res.status}`) as Error & {
+        status?: number;
+      };
+      e.status = res.status;
+      throw e;
+    }
+    return json;
+  });
+
+  const msg = data?.choices?.[0]?.message ?? {};
+  const urls = new Map<string, string>();
+  harvestUrls(msg.executed_tools ?? msg.reasoning ?? [], urls);
+
+  const queries: string[] = [];
+  for (const t of msg.executed_tools ?? []) {
+    const q = t?.arguments?.query ?? t?.input?.query ?? t?.query;
+    if (typeof q === "string") queries.push(q);
+    else if (typeof t?.arguments === "string") {
+      try {
+        const parsed = JSON.parse(t.arguments);
+        if (parsed?.query) queries.push(String(parsed.query));
+      } catch {
+        /* argument shape varies by tool — skip */
+      }
+    }
+  }
+
+  return { text: String(msg.content ?? "").trim(), urls: [...urls], queries, live: true };
+}
+
+export async function ground(
+  system: string,
+  user: string,
+  geminiModel: string,
+  extra: string[] = [],
+): Promise<Grounded> {
+  return provider() === "groq"
+    ? groqCall(system, user)
+    : geminiCall(system, user, geminiModel, extra);
+}

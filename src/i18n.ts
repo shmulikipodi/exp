@@ -1,0 +1,133 @@
+// Two languages, one shape. `kinds` maps the model's English enum — which the CSS and
+// the prompt both depend on — to what the reader actually sees.
+
+export type Lang = "en" | "he";
+
+export const STRINGS = {
+  en: {
+    dir: "ltr" as const,
+    other: "עברית",
+    tagline: "What you're listening to, explained while it plays.",
+    setup1: "Create an app at",
+    setup2: "Add this exact redirect URI:",
+    setup3a: "Tick",
+    setup3b: ", save, and paste the Client ID here.",
+    clientId: "Client ID",
+    save: "Save",
+    connectPrompt: "Connect Spotify and play something.",
+    connect: "Connect Spotify",
+    changeId: "Change Client ID",
+    idleTitle: "Nothing playing",
+    idleBody: "Start a track in Spotify — the notes follow along.",
+    loading: "Reading the sleeve…",
+    thread: "Thread",
+    revealAll: "Reveal all",
+    disconnect: "Disconnect",
+    more: (n: number) => `${n} more ${n === 1 ? "note" : "notes"}`,
+    nextAt: (t: string) => ` · next at ${t}`,
+    lowConfidence: "Thin evidence for this recording — treat these as unverified.",
+    playPause: "Play or pause",
+    nextTrack: "Next track",
+    prevTrack: "Previous track",
+    freeAccount:
+      "Playback control needs Spotify Premium. Everything else here works on a free account.",
+    reconnect: "Reconnect to enable controls",
+    noDevice: "Open Spotify on a device first.",
+    jumpTo: "Jump to this moment",
+    keysTitle: "Gemini keys",
+    keysHelp:
+      "Up to three. Each one must come from a DIFFERENT Google Cloud project — quota is counted per project, so three keys in one project share one empty bucket. Keys stay in this browser and are sent only to this app's own server.",
+    keysSlot: "Key",
+    keysGet: "Get a key at aistudio.google.com/apikey →",
+    keysTest: "Test keys",
+    keysTesting: "Testing…",
+    keysClose: "Close",
+    keysGood: "working",
+    keysInvalid: "not accepted",
+    keysNone: "No keys reached the server.",
+    keysCooling: (s: number) => `out of quota, retrying in ${s}s`,
+    keysButton: (n: number) => (n === 0 ? "keys" : `keys · ${n}`),
+    quota:
+      "The notes engine is out of quota for today. Add a Gemini API key from a new Google Cloud project — quota is counted per project, not per key.",
+    noEvidence:
+      "No catalogue entry and no live search for this one — written from model memory, so check anything surprising.",
+    kinds: {
+      origin: "origin",
+      room: "room",
+      personnel: "personnel",
+      sample: "sample",
+      lyric: "lyric",
+      moment: "moment",
+      afterlife: "afterlife",
+    } as Record<string, string>,
+  },
+  he: {
+    dir: "rtl" as const,
+    other: "English",
+    tagline: "מה שמתנגן עכשיו, מוסבר תוך כדי.",
+    setup1: "צרו אפליקציה ב־",
+    setup2: "הוסיפו בדיוק את כתובת ההפניה הזו:",
+    setup3a: "סמנו",
+    setup3b: ", שמרו, והדביקו כאן את ה־Client ID.",
+    clientId: "Client ID",
+    save: "שמירה",
+    connectPrompt: "התחברו ל־Spotify והפעילו משהו.",
+    connect: "התחברות ל־Spotify",
+    changeId: "החלפת Client ID",
+    idleTitle: "לא מתנגן כלום",
+    idleBody: "הפעילו שיר ב־Spotify — ההערות יבואו בעקבותיו.",
+    loading: "קורא את העטיפה…",
+    thread: "חוט מקשר",
+    revealAll: "להציג הכול",
+    disconnect: "התנתקות",
+    more: (n: number) => (n === 1 ? "עוד הערה אחת" : `עוד ${n} הערות`),
+    nextAt: (t: string) => ` · הבאה ב־${t}`,
+    lowConfidence: "עדויות דלות על ההקלטה הזו — התייחסו להערות כלא מאומתות.",
+    playPause: "נגינה או השהיה",
+    nextTrack: "השיר הבא",
+    prevTrack: "השיר הקודם",
+    freeAccount:
+      "שליטה בנגינה דורשת Spotify Premium. כל השאר עובד גם בחשבון חינמי.",
+    reconnect: "התחברו מחדש כדי להפעיל את הכפתורים",
+    noDevice: "פתחו את Spotify במכשיר כלשהו קודם.",
+    jumpTo: "לקפוץ לרגע הזה",
+    keysTitle: "מפתחות Gemini",
+    keysHelp:
+      "עד שלושה. כל מפתח חייב להגיע מפרויקט Google Cloud אחר — המכסה נספרת לפי פרויקט, ולכן שלושה מפתחות מאותו פרויקט חולקים אותה מכסה ריקה. המפתחות נשמרים בדפדפן הזה ונשלחים רק לשרת של האפליקציה.",
+    keysSlot: "מפתח",
+    keysGet: "להשגת מפתח: aistudio.google.com/apikey ←",
+    keysTest: "בדיקת המפתחות",
+    keysTesting: "בודק…",
+    keysClose: "סגירה",
+    keysGood: "עובד",
+    keysInvalid: "לא התקבל",
+    keysNone: "אף מפתח לא הגיע לשרת.",
+    keysCooling: (s: number) => `נגמרה המכסה, ניסיון חוזר בעוד ${s} שניות`,
+    keysButton: (n: number) => (n === 0 ? "מפתחות" : `מפתחות · ${n}`),
+    quota:
+      "מנוע ההערות מיצה את המכסה להיום. הוסיפו מפתח Gemini מפרויקט Google Cloud חדש — המכסה נספרת לפי פרויקט, לא לפי מפתח.",
+    noEvidence:
+      "אין רישום בקטלוג ואין חיפוש חי לשיר הזה — נכתב מזיכרון המודל, אז כדאי לבדוק כל דבר מפתיע.",
+    kinds: {
+      origin: "מקור",
+      room: "באולפן",
+      personnel: "מי ניגן",
+      sample: "סמפל",
+      lyric: "שורה",
+      moment: "רגע",
+      afterlife: "מה קרה אחר כך",
+    } as Record<string, string>,
+  },
+};
+
+const KEY = "ln.lang";
+
+export function storedLang(): Lang {
+  return localStorage.getItem(KEY) === "he" ? "he" : "en";
+}
+
+export function storeLang(l: Lang) {
+  localStorage.setItem(KEY, l);
+}
+
+export type Strings = (typeof STRINGS)[Lang];
