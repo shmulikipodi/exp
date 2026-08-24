@@ -20,6 +20,7 @@ import {
 } from "./spotify";
 import { STRINGS, storedLang, storeLang, type Lang } from "./i18n";
 import { accentFrom } from "./palette";
+import { matchesLang, schedule } from "./notes-logic";
 import { Keys, liveKeys } from "./Keys";
 import { History } from "./History";
 import {
@@ -83,18 +84,6 @@ const DEMO_TRACK: Playing = {
   isPlaying: true,
 };
 
-/** Notes without a timestamp get spread through the first three quarters, in order. */
-function schedule(notes: Note[]): number[] {
-  const floating = notes.filter((n) => n.at === null).length;
-  let seen = 0;
-  return notes.map((n) => {
-    if (n.at !== null) return n.at;
-    const slot = floating === 1 ? 0.15 : 0.06 + (seen / (floating - 1)) * 0.62;
-    seen++;
-    return slot;
-  });
-}
-
 async function post<T>(payload: Record<string, unknown>): Promise<T> {
   const res = await fetch("/api/notes", {
     method: "POST",
@@ -116,23 +105,6 @@ async function post<T>(payload: Record<string, unknown>): Promise<T> {
   }
   if (data.error) throw new Error(data.error);
   return data;
-}
-
-/** Cached notes can be in the wrong language — anything written in Hebrew before the
- *  prompt was fixed was stored under the Hebrew key while being English. Reading them
- *  back would keep serving that mistake forever, so the cache is checked, not trusted. */
-function matchesLang(notes: Notes, lang: Lang): boolean {
-  if (lang !== "he") return true;
-  const hebrew = (s: string) => /[\u0590-\u05FF]/.test(s);
-  // Every note has to pass. A set that is half Hebrew and half English is exactly the
-  // thing that kept surviving, because "contains Hebrew somewhere" was true of it.
-  //
-  // An empty set passes: a record the model had nothing to say about would otherwise
-  // fail this check on every single play and be regenerated forever.
-  if (notes.notes.length === 0) return true;
-  return (
-    (!notes.headline || hebrew(notes.headline)) && notes.notes.every((n) => hebrew(n.body))
-  );
 }
 
 /** Answers written before the language was enforced sit inside otherwise-valid entries.
@@ -782,6 +754,8 @@ export default function App() {
   const run = useCallback(async (action: () => Promise<string>, optimistic?: () => void) => {
     const before = latest.current.playing;
     optimistic?.();
+    // The demo has no Spotify behind it; the optimistic move IS the behaviour.
+    if (DEMO) return;
     const result = await action();
     if (result === "ok") {
       setCanControl(true);
@@ -1031,8 +1005,23 @@ export default function App() {
                   </p>
                 )}
 
-                {shown.map((n, i) => (
-                  <article key={`${n.title}-${i}`} className="note">
+                {shown.map((n, i) => {
+                  const at = times[activeNotes.notes.indexOf(n)];
+                  const seekable =
+                    !viewing && canControl !== false && track.durationMs > 0 && at !== undefined;
+
+                  return (
+                  <article
+                    key={`${n.title}-${i}`}
+                    className={`note${seekable ? " seekable" : ""}`}
+                    onClick={(e) => {
+                      // The buttons inside a note do their own thing.
+                      if ((e.target as HTMLElement).closest("button, a, input, form")) return;
+                      if (!seekable) return;
+                      const to = at * track.durationMs;
+                      run(() => seek(to), () => setProgress(to));
+                    }}
+                  >
                     <span className={`kind ${n.kind}`}>{t.kinds[n.kind] ?? n.kind}</span>
                     {n.at !== null && canControl !== false && !viewing && track.durationMs > 0 && (
                       <button
@@ -1092,7 +1081,8 @@ export default function App() {
                         </div>
                       ))}
                   </article>
-                ))}
+                  );
+                })}
 
                 {(activeNotes.answers ?? [])
                   .filter((a) => a.about === null || String(a.about).startsWith("topic:"))

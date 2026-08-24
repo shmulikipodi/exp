@@ -44,21 +44,21 @@ const TRANSIENT_ATTEMPTS = 3;
 
 /** A typo'd paste. Skip it and carry on — one bad key must not take down a working
  *  pool. Until user-supplied keys actually reached this function, it could not happen. */
-function isBadKey(status: number, message: string): boolean {
+export function isBadKey(status: number, message: string): boolean {
   return (
     (status === 400 || status === 403) &&
     /api key not valid|api_key_invalid|invalid api key/i.test(message)
   );
 }
 
-function isExhausted(status: number, message: string): boolean {
+export function isExhausted(status: number, message: string): boolean {
   if (status === 429) return true;
   if (status === 403 && /quota|permission|disabled/i.test(message)) return true;
   return /quota|exhausted|rate limit/i.test(message);
 }
 
 /** Google says "Please retry in 51.05s" — use its number rather than guessing. */
-function cooldownFrom(message: string): number {
+export function cooldownFrom(message: string): number {
   const m = message.match(/retry in ([\d.]+)s/i);
   const ms = m ? Number(m[1]) * 1000 : DEFAULT_COOLDOWN_MS;
   return Math.min(MAX_COOLDOWN_MS, Math.max(MIN_COOLDOWN_MS, ms));

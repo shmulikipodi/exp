@@ -191,10 +191,11 @@ button.ghost:hover { color: var(--dim); background: none; }
 .pip {
   position: absolute;
   bottom: 100%;
-  margin-bottom: 6px;
+  /* They were floating well clear of the bar and reading as separate from it. */
+  margin-bottom: 2px;
   margin-left: -1.5px;
   width: 3px;
-  height: 8px;
+  height: 7px;
   border-radius: 2px;
   background: rgba(243, 237, 227, 0.32);
   transition: background 0.4s, box-shadow 0.4s, height 0.3s;
@@ -202,7 +203,7 @@ button.ghost:hover { color: var(--dim); background: none; }
 }
 .pip.lit {
   background: var(--accent);
-  height: 11px;
+  height: 9px;
   box-shadow: 0 0 9px -1px var(--accent);
 }
 
@@ -328,6 +329,12 @@ button.ghost:hover { color: var(--dim); background: none; }
   margin-bottom: 6px;
 }
 
+.note.seekable { cursor: pointer; }
+/* The whole note sends you to the moment it describes, so it needs to look touchable
+   without turning the reading column into a grid of buttons. */
+.note.seekable:hover h3 { color: var(--accent); }
+.note.seekable:hover .jump { background: var(--accent); color: #14100a; border-color: var(--accent); }
+
 .note {
   max-width: 30em;
   padding: 0 0 12vh;
@@ -374,11 +381,22 @@ button.ghost:hover { color: var(--dim); background: none; }
 
 .note-actions {
   display: flex;
+  align-items: center;
   gap: 6px;
+  max-width: 30em;
   margin-top: 14px;
   opacity: 0;
   transition: opacity 0.2s;
 }
+
+/* Pushed to the far end, away from Ask. Deleting a note is destructive and was sitting
+   a few pixels from the button you actually reach for. */
+.note-actions .reject {
+  margin-inline-start: auto;
+  border-color: transparent;
+  opacity: 0.55;
+}
+.note-actions .reject:hover { opacity: 1; }
 .note:hover .note-actions,
 .note:focus-within .note-actions { opacity: 1; }
 @media (hover: none) { .note-actions { opacity: 0.6; } }

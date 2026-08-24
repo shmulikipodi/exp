@@ -110,7 +110,7 @@ function readJson(req: any): Promise<Body> {
 
 /** For answers, prose is a usable result — better than throwing away a good sentence
  *  because it arrived without braces around it. */
-function parseAnswer(text: string): string {
+export function parseAnswer(text: string): string {
   try {
     const parsed = parseNotes(text);
     const answer = String(parsed?.answer ?? "").trim();
@@ -122,7 +122,7 @@ function parseAnswer(text: string): string {
 }
 
 /** Models fence JSON even when told not to. Dig the object out. */
-function parseNotes(text: string): any {
+export function parseNotes(text: string): any {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const candidate = (fenced ? fenced[1] : text).trim();
   try {
@@ -191,13 +191,13 @@ The evidence below is in English. That is not a reason to answer in English.
 `;
 
 /** Did the model actually do it? Cheap, and the only way to know. */
-function looksHebrew(text: string): boolean {
+export function looksHebrew(text: string): boolean {
   return /[\u0590-\u05FF]/.test(text);
 }
 
 /** Every note, not just some. The model happily writes half a set in Hebrew and the
  *  rest in English, and "contains Hebrew somewhere" waves that straight through. */
-function allHebrew(parsed: any): boolean {
+export function allHebrew(parsed: any): boolean {
   if (!looksHebrew(String(parsed?.headline ?? ""))) return false;
   const notes = Array.isArray(parsed?.notes) ? parsed.notes : [];
   return notes.every((n: any) => looksHebrew(String(n?.body ?? "")));

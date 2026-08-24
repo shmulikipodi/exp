@@ -12,7 +12,7 @@ export type Evidence = { text: string; sources: [string, string][] };
 const clean = (s: string) => s.replace(/["\\]/g, " ").trim();
 
 /** Loose title comparison — "Song (Remastered 2011)" is still the same song. */
-function sameSong(a: string | undefined, b: string): boolean {
+export function sameSong(a: string | undefined, b: string): boolean {
   const norm = (v: string) =>
     v
       .toLowerCase()
