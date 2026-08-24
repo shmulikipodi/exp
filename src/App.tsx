@@ -35,7 +35,13 @@ import {
 } from "./store";
 import "./App.css";
 
-type Note = { kind: string; at: number | null; title: string; body: string };
+type Note = {
+  kind: string;
+  at: number | null;
+  atBasis?: "documented" | "estimated" | "heard" | null;
+  title: string;
+  body: string;
+};
 type Answer = {
   id: string;
   question: string;
@@ -304,6 +310,7 @@ export default function App() {
         artists: up.artists,
         album: up.album,
         released: up.released,
+        durationMs: up.durationMs,
         isrc: up.isrc,
         label: extra.label,
         genres: extra.genres,
@@ -395,6 +402,7 @@ export default function App() {
         artists: playing.artists,
         album: playing.album,
         released: playing.released,
+        durationMs: playing.durationMs,
         isrc: playing.isrc,
         label: extra.label,
         genres: extra.genres,
@@ -693,6 +701,27 @@ export default function App() {
     [current, subject, persist, targetOf, viewing, playing, t],
   );
 
+  // The model can place a moment to within a few seconds; a listener can place it
+  // exactly. Pressing this while the thing is happening is the only way to be certain,
+  // and it sticks — the note is saved where you heard it.
+  const setNoteHere = useCallback(
+    (note: Note) => {
+      const target = targetOf();
+      if (!current || !target || !playing?.durationMs) return;
+      const at = Math.min(1, Math.max(0, latest.current.progress / playing.durationMs));
+      persist(
+        {
+          ...current,
+          notes: current.notes.map((n) =>
+            n.title === note.title ? { ...n, at, atBasis: "heard" as const } : n,
+          ),
+        },
+        target,
+      );
+    },
+    [current, persist, targetOf, playing?.durationMs],
+  );
+
   const ask = useCallback(
     async (question: string, about: Note | null) => {
       const target = targetOf();
@@ -933,13 +962,18 @@ export default function App() {
               }}
             >
               <div className="fill" style={{ width: `${fraction * 100}%` }} />
-              {times.map((at, i) => (
-                <span
-                  key={i}
-                  className={`pip ${at <= fraction ? "lit" : ""}`}
-                  style={{ left: `${at * 100}%` }}
-                />
-              ))}
+              {(activeNotes?.notes ?? []).map((n, i) =>
+                n.at === null ? null : (
+                  <span
+                    key={i}
+                    className={`pip${n.at <= fraction ? " lit" : ""}${
+                      n.atBasis === "documented" || n.atBasis === "heard" ? " sure" : ""
+                    }`}
+                    style={{ left: `${n.at * 100}%` }}
+                    title={n.title}
+                  />
+                ),
+              )}
             </div>
             <p className="time" dir="ltr">
               {mmss(progress)} <span>/ {mmss(track.durationMs)}</span>
@@ -1033,8 +1067,14 @@ export default function App() {
                     <span className={`kind ${n.kind}`}>{t.kinds[n.kind] ?? n.kind}</span>
                     {n.at !== null && canControl !== false && !viewing && track.durationMs > 0 && (
                       <button
-                        className="jump"
-                        title={t.jumpTo}
+                        className={`jump${
+                          n.atBasis === "documented" || n.atBasis === "heard" ? " sure" : ""
+                        }`}
+                        title={
+                          n.atBasis === "documented" || n.atBasis === "heard"
+                            ? t.jumpTo
+                            : t.jumpToApprox
+                        }
                         onClick={() => {
                           const target = n.at! * track.durationMs;
                           run(() => seek(target), () => setProgress(target));
@@ -1055,6 +1095,11 @@ export default function App() {
                       >
                         {t.askAbout}
                       </button>
+                      {!viewing && track.durationMs > 0 && (
+                        <button title={t.setHereHint} onClick={() => setNoteHere(n)}>
+                          {t.setHere}
+                        </button>
+                      )}
                       <button className="reject" onClick={() => rejectNote(n)}>
                         {t.markWrong}
                       </button>

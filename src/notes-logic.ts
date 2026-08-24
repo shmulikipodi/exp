@@ -6,16 +6,17 @@ import type { Lang } from "./i18n";
 export type TimedNote = { at: number | null };
 export type LangCheckable = { headline: string; notes: { body: string }[] };
 
-/** Notes without a timestamp get spread through the first three quarters, in order. */
+/**
+ * Where each note belongs on the track.
+ *
+ * A note about a moment in the recording sits at that moment. Everything else — who
+ * produced it, what it samples, what happened afterwards — is true of the whole record
+ * and is available from the start. Spreading those through the song implied a
+ * relationship to the music that was never there: a note about a lawsuit in 1994 would
+ * surface two minutes in, as though something at two minutes had caused it.
+ */
 export function schedule(notes: TimedNote[]): number[] {
-  const floating = notes.filter((n) => n.at === null).length;
-  let seen = 0;
-  return notes.map((n) => {
-    if (n.at !== null) return n.at;
-    const slot = floating === 1 ? 0.15 : 0.06 + (seen / (floating - 1)) * 0.62;
-    seen++;
-    return slot;
-  });
+  return notes.map((n) => (n.at === null ? 0 : n.at));
 }
 
 /**

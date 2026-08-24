@@ -273,6 +273,7 @@ export type Upcoming = {
   id: string;
   isrc: string;
   art: string;
+  durationMs: number;
   albumId: string;
   artistId: string;
   title: string;
@@ -290,6 +291,7 @@ export async function queueNext(): Promise<Upcoming | null> {
     id: item.id,
     isrc: item.external_ids?.isrc ?? "",
     art: item.album?.images?.[0]?.url ?? "",
+    durationMs: item.duration_ms ?? 0,
     albumId: item.album?.id ?? "",
     artistId: item.artists?.[0]?.id ?? "",
     title: item.name,

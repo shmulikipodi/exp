@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allHebrew, looksHebrew, parseAnswer, parseNotes } from "./notes.js";
+import { allHebrew, looksHebrew, parseAnswer, parseNotes, toFraction } from "./notes.js";
 
 describe("parseNotes", () => {
   it("reads plain JSON", () => {
@@ -64,5 +64,31 @@ describe("the Hebrew checks", () => {
   it("survives a malformed shape instead of throwing mid-request", () => {
     expect(allHebrew({})).toBe(false);
     expect(allHebrew({ headline: "כותרת" })).toBe(true);
+  });
+});
+
+describe("placing a note in the track", () => {
+  const FIVE_MIN = 300_000;
+
+  it("turns a timestamp into a position", () => {
+    expect(toFraction("2:30", FIVE_MIN)).toBeCloseTo(0.5, 5);
+    expect(toFraction("0:00", FIVE_MIN)).toBe(0);
+  });
+
+  it("refuses a time past the end of the song", () => {
+    expect(toFraction("9:99", FIVE_MIN)).toBeNull();
+    expect(toFraction("7:00", FIVE_MIN)).toBeNull();
+  });
+
+  it("refuses anything that is not a time", () => {
+    expect(toFraction("about halfway", FIVE_MIN)).toBeNull();
+    expect(toFraction("40%", FIVE_MIN)).toBeNull();
+    expect(toFraction(null, FIVE_MIN)).toBeNull();
+    expect(toFraction("2:30", 0)).toBeNull();
+  });
+
+  it("still accepts the raw fraction older stored notes used", () => {
+    expect(toFraction(0.42, FIVE_MIN)).toBe(0.42);
+    expect(toFraction(1.5, FIVE_MIN)).toBeNull();
   });
 });

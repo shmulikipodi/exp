@@ -8,27 +8,20 @@ describe("schedule", () => {
     expect(schedule([{ at: 0.42 }])).toEqual([0.42]);
   });
 
-  it("puts a lone floating note early, not at the start", () => {
-    const [only] = schedule([{ at: null }]);
-    expect(only).toBeGreaterThan(0);
-    expect(only).toBeLessThan(0.3);
+  it("puts a note with no moment at the very start", () => {
+    expect(schedule([{ at: null }])).toEqual([0]);
   });
 
-  it("spreads floating notes in order without collisions", () => {
-    const times = schedule([{ at: null }, { at: null }, { at: null }, { at: null }]);
-    expect(times).toEqual([...times].sort((a, b) => a - b));
-    expect(new Set(times).size).toBe(times.length);
-    expect(Math.max(...times)).toBeLessThan(0.75);
+  it("leaves every general note available immediately", () => {
+    expect(schedule([{ at: null }, { at: null }, { at: null }])).toEqual([0, 0, 0]);
   });
 
-  it("leaves room at the end so the last note is not stranded past the fade", () => {
-    const times = schedule(Array.from({ length: 12 }, () => ({ at: null })));
-    expect(Math.max(...times)).toBeLessThanOrEqual(0.68);
+  it("does not move a timed note to make room for untimed ones", () => {
+    expect(schedule([{ at: null }, { at: 0.8 }, { at: null }])).toEqual([0, 0.8, 0]);
   });
 
-  it("interleaves fixed and floating notes without dividing by zero", () => {
-    expect(() => schedule([{ at: 0.9 }, { at: null }])).not.toThrow();
-    expect(schedule([{ at: 0.9 }, { at: null }])[0]).toBe(0.9);
+  it("keeps timed notes in whatever order the track puts them", () => {
+    expect(schedule([{ at: 0.9 }, { at: 0.2 }])).toEqual([0.9, 0.2]);
   });
 
   it("handles an empty set", () => {

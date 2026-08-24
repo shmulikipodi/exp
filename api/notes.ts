@@ -41,13 +41,24 @@ Note kinds, pick whichever the evidence actually supports:
   moment     — a thing audible at a specific point in the recording
   afterlife  — what happened to it after release: lawsuits, chart facts, covers, reuse
 
-"at" is where in the song the note belongs, as a fraction from 0 to 1. Set it ONLY for
-kind "moment" and for any note genuinely tied to a point in the recording. Otherwise null.
+"at" places a note at a moment in the recording. Give it as a timestamp inside the
+track's length — "2:07" — never a fraction or a percentage.
+
+- Set it ONLY when the note is about something audible at a particular point: a solo
+  starting, an instrument entering, a key change, a sound you can point at. Everything
+  else — who produced it, where it was cut, what it samples, what happened afterwards —
+  takes "at": null and is shown from the start.
+- If the evidence states a time, use that time. It is the only sort you can be sure of.
+- Otherwise place it from the structure of the song and the track's length, and say so.
+- If you cannot place it within about ten seconds, set "at" to null. A dot in the wrong
+  place is worse than no dot: the reader sits waiting for something that never comes.
+- "atBasis" is "documented" when the time came from the evidence, "estimated" when you
+  worked it out yourself.
 
 Return ONLY a JSON object, no markdown fence:
 {
   "headline": "one sentence naming what this record actually is, the way someone who knows it would say it to a friend. Not a summary. Not praise.",
-  "notes": [{ "kind": "origin", "at": null, "title": "four to seven words", "body": "one to three sentences" }],
+  "notes": [{ "kind": "origin", "at": null, "atBasis": null, "title": "four to seven words", "body": "one to three sentences" }],
   "thread": "one sentence connecting this song to the listed recent tracks — a shared producer, player, sample, city, year, label or lineage. Only if a real connection exists. Otherwise null.",
   "confidence": "high" | "low"
 }`;
@@ -63,6 +74,7 @@ type Body = {
   artists?: string[];
   album?: string;
   released?: string;
+  durationMs?: number;
   label?: string;
   genres?: string[];
   recent?: string[];
@@ -119,6 +131,24 @@ export function parseAnswer(text: string): string {
     /* not JSON — the raw text is the answer */
   }
   return text.replace(/```(?:json)?|```/g, "").trim();
+}
+
+/**
+ * A timestamp becomes a position in the track. Anything that isn't a real time inside
+ * the song is dropped to null rather than guessed at — the note still shows, just from
+ * the start, which is the honest place for a moment nobody can locate.
+ */
+export function toFraction(at: unknown, durationMs: number): number | null {
+  // Older stored notes used a raw fraction.
+  if (typeof at === "number") return at >= 0 && at <= 1 ? at : null;
+  if (typeof at !== "string" || !durationMs) return null;
+
+  const m = at.trim().match(/^(\d{1,2}):([0-5]\d)$/);
+  if (!m) return null;
+
+  const ms = (Number(m[1]) * 60 + Number(m[2])) * 1000;
+  if (ms < 0 || ms > durationMs) return null;
+  return ms / durationMs;
 }
 
 /** Models fence JSON even when told not to. Dig the object out. */
@@ -251,6 +281,11 @@ export default async function handler(req: any, res: any) {
       `Artist: ${artists.join(", ")}`,
       body.album ? `Album: ${body.album}` : "",
       body.released ? `Released: ${body.released}` : "",
+      body.durationMs
+        ? `Length: ${Math.floor(body.durationMs / 60000)}:${String(
+            Math.floor((body.durationMs % 60000) / 1000),
+          ).padStart(2, "0")} — any timestamp must fall inside this.`
+        : "",
       body.label ? `Label: ${body.label}` : "",
       (body.genres ?? []).length ? `Genres Spotify files the artist under: ${(body.genres ?? []).join(", ")}` : "",
     ]
@@ -410,12 +445,16 @@ export default async function handler(req: any, res: any) {
       // After a retry, a stray English note is dropped rather than shown. Fewer notes
       // in the right language beats a set that is half in the wrong one.
       .filter((n: any) => !hebrew || looksHebrew(String(n.body)))
-      .map((n: any) => ({
+      .map((n: any) => {
+        const at = toFraction(n.at, body.durationMs ?? 0);
+        return {
         kind: String(n.kind ?? "origin"),
-        at: typeof n.at === "number" && n.at >= 0 && n.at <= 1 ? n.at : null,
+        at,
+        atBasis: at === null ? null : n.atBasis === "documented" ? "documented" : "estimated",
         title: String(n.title ?? "").trim(),
         body: String(n.body).trim(),
-      }));
+        };
+      });
 
     // Titles identify a note when it is questioned or marked wrong, so two notes may
     // not share one — deleting a duplicate would take its twin with it.

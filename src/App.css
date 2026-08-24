@@ -201,6 +201,11 @@ button.ghost:hover { color: var(--dim); background: none; }
   transition: background 0.4s, box-shadow 0.4s, height 0.3s;
   pointer-events: none;
 }
+/* A documented time is drawn solid; an estimate is drawn hollow, because the difference
+   between "the source says 2:07" and "probably around there" is worth seeing. */
+.pip.sure { width: 4px; }
+.pip:not(.sure) { opacity: 0.62; }
+
 .pip.lit {
   background: var(--accent);
   height: 9px;
@@ -284,6 +289,7 @@ button.ghost:hover { color: var(--dim); background: none; }
   vertical-align: 2px;
 }
 .jump:hover { background: var(--accent); color: #14100a; border-color: var(--accent); }
+.jump:not(.sure) { border-style: dashed; opacity: 0.8; }
 
 
 /* ---------- the notes ---------- */
