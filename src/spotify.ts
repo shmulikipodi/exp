@@ -232,6 +232,7 @@ async function get(path: string): Promise<any> {
 export type Upcoming = {
   id: string;
   isrc: string;
+  art: string;
   albumId: string;
   artistId: string;
   title: string;
@@ -248,6 +249,7 @@ export async function queueNext(): Promise<Upcoming | null> {
   return {
     id: item.id,
     isrc: item.external_ids?.isrc ?? "",
+    art: item.album?.images?.[0]?.url ?? "",
     albumId: item.album?.id ?? "",
     artistId: item.artists?.[0]?.id ?? "",
     title: item.name,

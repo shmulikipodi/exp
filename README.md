@@ -26,6 +26,21 @@ product's opinion about what a liner note is; edit it there, not inline.
   usually lands on a cache hit instead of twenty seconds of waiting.
 - **Playback control**, and a timestamp chip on any note about a specific moment —
   click it to seek there. Free accounts keep everything except the transport.
+- **Notes are a conversation, not a document.** Ask for more; ask a question about one
+  note or about the record; mark a note wrong and it is deleted *and remembered*, so a
+  later regeneration is told not to write it again. Everything is saved with the track.
+
+## Storage
+
+IndexedDB, via `src/store.ts`. localStorage caps out near 5MB — a couple of thousand
+notes — so note bodies live in IndexedDB instead, which is measured in hundreds of
+megabytes. Anything written before the move migrates across on first run. The index is
+mirrored in memory so the history list and the cache check stay synchronous, and a
+browser that refuses IndexedDB (private mode) degrades to forgetting, exactly as the
+app behaved before any of this existed.
+
+Reading a track again costs no model call, which matters more than the convenience on
+a free-tier key.
 
 ## Setup
 

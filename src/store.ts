@@ -1,113 +1,171 @@
-// Notes survive the tab now. Two reasons: you can go back to a song you heard while
-// you were in another room, and re-reading a track no longer costs a model call —
-// which matters a lot on a free-tier key.
+// Notes live in IndexedDB. localStorage caps out around 5MB, which is a few thousand
+// notes at best; IndexedDB is measured in hundreds of megabytes, so the cap stops
+// being something to think about. The index is mirrored in memory so the history list
+// and the "do we already have this?" check stay synchronous.
 
-export type Stored = {
+export type Entry = {
   id: string;
   lang: string;
   title: string;
   artists: string[];
   album: string;
   art: string;
-  at: number; // when it was first written
-  notes: unknown; // the Notes payload, opaque to this module
+  at: number;
 };
 
-const INDEX = "ln.history";
-const ITEM = (id: string, lang: string) => `ln.n.${id}.${lang}`;
-const LIMIT = 250;
+const DB_NAME = "exp";
+const STORE = "notes";
+const LIMIT = 20000;
 
-type Entry = Omit<Stored, "notes">;
+const key = (id: string, lang: string) => `${id}:${lang}`;
 
-function readIndex(): Entry[] {
-  try {
-    const raw = JSON.parse(localStorage.getItem(INDEX) ?? "[]");
-    return Array.isArray(raw) ? raw : [];
-  } catch {
-    return [];
-  }
+let db: IDBDatabase | null = null;
+let index: Entry[] = [];
+let readyPromise: Promise<void> | null = null;
+
+function request<T>(req: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
 }
 
-function writeIndex(entries: Entry[]) {
-  try {
-    localStorage.setItem(INDEX, JSON.stringify(entries));
-  } catch {
-    /* quota — the eviction in save() is what keeps this from happening */
-  }
+function openDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const database = req.result;
+      if (!database.objectStoreNames.contains(STORE)) {
+        database.createObjectStore(STORE, { keyPath: "key" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
 }
 
-/** Most recently played first. One row per track per language. */
+/** Anything written before the move to IndexedDB comes across on first run. */
+async function migrateFromLocalStorage(store: IDBObjectStore) {
+  let legacy: Entry[] = [];
+  try {
+    const raw = JSON.parse(localStorage.getItem("ln.history") ?? "[]");
+    legacy = Array.isArray(raw) ? raw : [];
+  } catch {
+    return;
+  }
+  if (legacy.length === 0) return;
+
+  for (const entry of legacy) {
+    try {
+      const raw = localStorage.getItem(`ln.n.${entry.id}.${entry.lang}`);
+      if (!raw) continue;
+      store.put({ key: key(entry.id, entry.lang), entry, notes: JSON.parse(raw) });
+      localStorage.removeItem(`ln.n.${entry.id}.${entry.lang}`);
+    } catch {
+      /* one unreadable row shouldn't stop the rest */
+    }
+  }
+  localStorage.removeItem("ln.history");
+}
+
+export function ready(): Promise<void> {
+  if (readyPromise) return readyPromise;
+
+  readyPromise = (async () => {
+    try {
+      db = await openDb();
+      const tx = db.transaction(STORE, "readwrite");
+      const store = tx.objectStore(STORE);
+      await migrateFromLocalStorage(store);
+      const rows = await request(store.getAll());
+      index = rows
+        .map((r: { entry: Entry }) => r.entry)
+        .filter(Boolean)
+        .sort((a, b) => b.at - a.at);
+    } catch {
+      // Private-browsing modes can refuse IndexedDB outright. The app still works;
+      // it just forgets, exactly as it did before any of this existed.
+      db = null;
+      index = [];
+    }
+  })();
+
+  return readyPromise;
+}
+
+/** Most recently written first. Synchronous — mirrors what is in the database. */
 export function history(): Entry[] {
-  return readIndex();
+  return index;
 }
 
-export function loadNotes(id: string, lang: string): unknown | null {
+export async function loadNotes(id: string, lang: string): Promise<unknown | null> {
+  await ready();
+  if (!db) return null;
   try {
-    const raw = localStorage.getItem(ITEM(id, lang));
-    return raw ? JSON.parse(raw) : null;
+    const row = await request(
+      db.transaction(STORE, "readonly").objectStore(STORE).get(key(id, lang)),
+    );
+    return (row as { notes?: unknown } | undefined)?.notes ?? null;
   } catch {
     return null;
   }
 }
 
-export function saveNotes(entry: Entry, notes: unknown) {
-  const rest = readIndex().filter((e) => !(e.id === entry.id && e.lang === entry.lang));
-  const next = [entry, ...rest];
-
-  // Oldest entries fall off the end rather than letting localStorage throw.
-  for (const gone of next.splice(LIMIT)) {
-    try {
-      localStorage.removeItem(ITEM(gone.id, gone.lang));
-    } catch {
-      /* nothing to do if it's already gone */
-    }
-  }
-
+export async function saveNotes(entry: Entry, notes: unknown): Promise<void> {
+  await ready();
+  if (!db) return;
   try {
-    localStorage.setItem(ITEM(entry.id, entry.lang), JSON.stringify(notes));
-    writeIndex(next);
+    const tx = db.transaction(STORE, "readwrite");
+    const store = tx.objectStore(STORE);
+    store.put({ key: key(entry.id, entry.lang), entry, notes });
+
+    index = [entry, ...index.filter((e) => !(e.id === entry.id && e.lang === entry.lang))];
+
+    // A ceiling this high is really just a guard against something pathological.
+    for (const gone of index.splice(LIMIT)) {
+      store.delete(key(gone.id, gone.lang));
+    }
   } catch {
-    // Out of room: drop the oldest half and try once more.
-    const keep = next.slice(0, Math.floor(next.length / 2));
-    for (const gone of next.slice(keep.length)) {
-      try {
-        localStorage.removeItem(ITEM(gone.id, gone.lang));
-      } catch {
-        /* already gone */
-      }
-    }
-    try {
-      localStorage.setItem(ITEM(entry.id, entry.lang), JSON.stringify(notes));
-      writeIndex([entry, ...keep.filter((e) => e.id !== entry.id || e.lang !== entry.lang)]);
-    } catch {
-      /* give up quietly — history is a convenience, not the product */
-    }
+    /* storage is a convenience, not the product */
   }
 }
 
-export function forget(id: string, lang: string) {
+export async function forget(id: string, lang: string): Promise<void> {
+  await ready();
+  index = index.filter((e) => !(e.id === id && e.lang === lang));
+  if (!db) return;
   try {
-    localStorage.removeItem(ITEM(id, lang));
+    db.transaction(STORE, "readwrite").objectStore(STORE).delete(key(id, lang));
   } catch {
     /* already gone */
   }
-  writeIndex(readIndex().filter((e) => !(e.id === id && e.lang === lang)));
 }
 
-export function clearHistory() {
-  for (const e of readIndex()) {
-    try {
-      localStorage.removeItem(ITEM(e.id, e.lang));
-    } catch {
-      /* already gone */
-    }
+export async function clearHistory(): Promise<void> {
+  await ready();
+  index = [];
+  if (!db) return;
+  try {
+    db.transaction(STORE, "readwrite").objectStore(STORE).clear();
+  } catch {
+    /* already empty */
   }
-  writeIndex([]);
+}
+
+/** What the browser thinks we're using, for the history panel's footer. */
+export async function usage(): Promise<{ count: number; mb: number }> {
+  await ready();
+  let mb = 0;
+  try {
+    const est = await navigator.storage?.estimate?.();
+    if (est?.usage) mb = est.usage / (1024 * 1024);
+  } catch {
+    /* not supported — the count alone is still useful */
+  }
+  return { count: index.length, mb };
 }
 
 /** Seeds the session thread from what has actually been read, newest first. */
 export function recentStamps(limit = 8): string[] {
-  return history()
-    .slice(0, limit)
-    .map((e) => `${e.artists.join(", ")} — ${e.title}`);
+  return index.slice(0, limit).map((e) => `${e.artists.join(", ")} — ${e.title}`);
 }

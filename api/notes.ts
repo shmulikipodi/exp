@@ -53,6 +53,11 @@ Return ONLY a JSON object, no markdown fence:
 }`;
 
 type Body = {
+  mode?: "notes" | "more" | "ask";
+  have?: { title: string; body: string }[];
+  rejected?: string[];
+  question?: string;
+  about?: { title: string; body: string } | null;
   title?: string;
   artists?: string[];
   album?: string;
@@ -116,6 +121,23 @@ function parseNotes(text: string): any {
   }
 }
 
+const ASK_SYSTEM = `You are answering a question about a specific recording, for someone
+listening to it right now. You have the same evidence the liner notes were written from.
+
+- Answer in two to four sentences. No preamble, no restating the question.
+- Specific and checkable beats general and safe. Names, years, rooms, numbers.
+- If the evidence does not settle it and you are not confident from your own knowledge,
+  say so plainly in one sentence. A clear "that isn't documented" is a good answer; a
+  confident invention is the one unforgivable failure.
+- Do not praise the record or tell the listener how to feel about it.
+
+Return ONLY a JSON object, no markdown fence: { "answer": "..." }`;
+
+const HEBREW_RULE = `\n\nWrite every human-readable string in Hebrew, in the same plain,
+specific register. Keep the JSON keys exactly as specified, in English. Leave names of
+people, bands, songs, albums, studios and labels in their original Latin script rather
+than transliterating them.`;
+
 export default async function handler(req: any, res: any) {
   res.setHeader("content-type", "application/json");
 
@@ -166,16 +188,61 @@ export default async function handler(req: any, res: any) {
 
     const recent = (body.recent ?? []).filter(Boolean);
     const evidence = await gather(title, artists[0], (body.isrc ?? "").trim());
+    const hebrew = body.lang === "he";
+    const evidenceBlock = evidence.text
+      ? `EVIDENCE\n${evidence.text}\n\nEND EVIDENCE\n\n`
+      : "No catalogue or encyclopedia entry was found for this recording. Be correspondingly careful.\n\n";
+
+    // A question about the record, or about one note in it.
+    if (body.mode === "ask") {
+      const question = (body.question ?? "").trim();
+      if (!question) {
+        res.statusCode = 400;
+        return res.end(JSON.stringify({ error: "question required" }));
+      }
+      const asked =
+        `${facts}\n\n${evidenceBlock}` +
+        (body.about
+          ? `The reader is asking about this note:\n"${body.about.title}" — ${body.about.body}\n\n`
+          : "") +
+        `Question: ${question}`;
+
+      const answered = await ground(
+        hebrew ? `${ASK_SYSTEM}${HEBREW_RULE}` : ASK_SYSTEM,
+        asked,
+        MODEL,
+        userKeys,
+      );
+      const parsedAnswer = parseNotes(answered.text);
+      return res.end(
+        JSON.stringify({
+          answer: String(parsedAnswer.answer ?? answered.text).trim(),
+          sources: answered.urls.slice(0, 4),
+        }),
+      );
+    }
+
+    const already = (body.have ?? []).filter((n) => n?.title);
+    const rejected = (body.rejected ?? []).filter(Boolean);
 
     const user =
       `${facts}\n\n` +
       (recent.length
         ? `Played just before this, most recent first:\n${recent.map((r) => `- ${r}`).join("\n")}\n\n`
         : "No listening history yet this session — set thread to null.\n\n") +
-      (evidence.text
-        ? `EVIDENCE\n${evidence.text}\n\nEND EVIDENCE\n\n`
-        : "No catalogue or encyclopedia entry was found for this recording. Be correspondingly careful.\n\n") +
-      `Write the notes.`;
+      evidenceBlock +
+      (rejected.length
+        ? `The reader marked these earlier notes as WRONG. Do not repeat them, and do not ` +
+          `write anything that depends on them being true:\n${rejected.map((r) => `- ${r}`).join("\n")}\n\n`
+        : "") +
+      (body.mode === "more"
+        ? `These notes have already been written. Write THREE MORE on ground they do not ` +
+          `cover — different kinds, different parts of the story. Do not restate or ` +
+          `rephrase them:\n${already.map((n) => `- ${n.title}: ${n.body}`).join("\n")}\n\n` +
+          `Return the same JSON shape containing only the new notes. Set headline to "" ` +
+          `and thread to null. If there is genuinely nothing more worth saying about this ` +
+          `recording, return an empty notes array rather than padding.`
+        : `Write the notes.`);
 
     // Hebrew is a rewrite, not a translation pass — the model writes in it directly.
     const system =

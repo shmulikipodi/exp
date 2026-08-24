@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import type { Strings } from "./i18n";
-import { clearHistory, forget, history, loadNotes, type Stored } from "./store";
+import { clearHistory, type Entry, forget, history, loadNotes, ready, usage } from "./store";
 
 export function History({
   t,
@@ -7,10 +8,18 @@ export function History({
   onClose,
 }: {
   t: Strings;
-  onOpen: (entry: Omit<Stored, "notes">, notes: unknown) => void;
+  onOpen: (entry: Entry, notes: unknown) => void;
   onClose: () => void;
 }) {
-  const entries = history();
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [size, setSize] = useState<{ count: number; mb: number } | null>(null);
+
+  useEffect(() => {
+    ready().then(() => {
+      setEntries([...history()]);
+      usage().then(setSize);
+    });
+  }, []);
 
   return (
     <div className="sheet" role="dialog" aria-modal="true">
@@ -25,8 +34,8 @@ export function History({
               <li key={`${e.id}:${e.lang}`}>
                 <button
                   className="open"
-                  onClick={() => {
-                    const notes = loadNotes(e.id, e.lang);
+                  onClick={async () => {
+                    const notes = await loadNotes(e.id, e.lang);
                     if (notes) onOpen(e, notes);
                   }}
                 >
@@ -41,10 +50,9 @@ export function History({
                   className="drop"
                   title={t.historyForget}
                   aria-label={t.historyForget}
-                  onClick={(ev) => {
-                    forget(e.id, e.lang);
-                    // The list is read straight from storage, so nudge a re-render.
-                    ev.currentTarget.closest("li")?.remove();
+                  onClick={async () => {
+                    await forget(e.id, e.lang);
+                    setEntries([...history()]);
                   }}
                 >
                   ×
@@ -54,14 +62,18 @@ export function History({
           </ul>
         )}
 
+        {size && size.count > 0 && (
+          <p className="usage">{t.historyUsage(size.count, size.mb)}</p>
+        )}
+
         <div className="row">
           {entries.length > 0 && (
             <button
-              onClick={() => {
-                if (confirm(t.historyClearConfirm)) {
-                  clearHistory();
-                  onClose();
-                }
+              onClick={async () => {
+                if (!confirm(t.historyClearConfirm)) return;
+                await clearHistory();
+                setEntries([]);
+                onClose();
               }}
             >
               {t.historyClear}

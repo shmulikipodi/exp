@@ -22,10 +22,18 @@ import { STRINGS, storedLang, storeLang, type Lang } from "./i18n";
 import { accentFrom } from "./palette";
 import { Keys, liveKeys } from "./Keys";
 import { History } from "./History";
-import { history as readHistory, loadNotes, recentStamps, saveNotes, type Stored } from "./store";
+import {
+  type Entry,
+  history as readHistory,
+  loadNotes,
+  ready as storeReady,
+  recentStamps,
+  saveNotes,
+} from "./store";
 import "./App.css";
 
 type Note = { kind: string; at: number | null; title: string; body: string };
+type Answer = { id: string; question: string; about: string | null; body: string };
 type Notes = {
   headline: string;
   notes: Note[];
@@ -34,6 +42,8 @@ type Notes = {
   sources: [string, string][];
   live: boolean;
   evidence: boolean;
+  answers?: Answer[];
+  rejected?: string[];
 };
 
 const TICK_MS = 250;
@@ -83,7 +93,7 @@ function schedule(notes: Note[]): number[] {
   });
 }
 
-async function requestNotes(payload: Record<string, unknown>): Promise<Notes> {
+async function post<T>(payload: Record<string, unknown>): Promise<T> {
   const res = await fetch("/api/notes", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -92,7 +102,7 @@ async function requestNotes(payload: Record<string, unknown>): Promise<Notes> {
   // A cold start or a crashed function answers with an HTML error page, and
   // "Unexpected token 'A'" is a useless thing to show a reader.
   const body = await res.text();
-  let data: Notes & { error?: string };
+  let data: T & { error?: string };
   try {
     data = JSON.parse(body);
   } catch {
@@ -132,8 +142,11 @@ export default function App() {
   const [canControl, setCanControl] = useState<boolean | null>(null);
   const [controlNote, setControlNote] = useState("");
   const [showHistory, setShowHistory] = useState(false);
-  const [historyCount, setHistoryCount] = useState(() => readHistory().length);
-  const [viewing, setViewing] = useState<{ entry: Omit<Stored, "notes">; notes: Notes } | null>(null);
+  const [historyCount, setHistoryCount] = useState(0);
+  const [viewing, setViewing] = useState<{ entry: Entry; notes: Notes } | null>(null);
+  const [busy, setBusy] = useState("");
+  const [askingAbout, setAskingAbout] = useState<string | null>(null);
+  const [draftQ, setDraftQ] = useState("");
 
   const history = useRef<string[]>([]);
   const fetchedFor = useRef<string>("");
@@ -154,6 +167,10 @@ export default function App() {
       storeLang(next);
       return next;
     });
+  }, []);
+
+  useEffect(() => {
+    storeReady().then(() => setHistoryCount(readHistory().length));
   }, []);
 
   useEffect(() => {
@@ -259,7 +276,7 @@ export default function App() {
       }));
       if (!alive) return;
 
-      const data = await requestNotes({
+      const data = await post<Notes>({
         title: up.title,
         artists: up.artists,
         album: up.album,
@@ -281,7 +298,7 @@ export default function App() {
           title: up.title,
           artists: up.artists,
           album: up.album,
-          art: (up as { art?: string }).art ?? "",
+          art: up.art,
           at: Date.now(),
         },
         data,
@@ -315,10 +332,9 @@ export default function App() {
     const recent = history.current.slice(0, 5);
     history.current = [stamp, ...history.current.filter((h) => h !== stamp)].slice(0, 8);
 
-    const cached = cache.current.get(key) ?? (loadNotes(playing.id, lang) as Notes | null);
-    if (cached) {
-      cache.current.set(key, cached);
-      setNotes(cached);
+    const inMemory = cache.current.get(key);
+    if (inMemory) {
+      setNotes(inMemory);
       return;
     }
 
@@ -326,13 +342,19 @@ export default function App() {
     setLoading(true);
 
     (async () => {
+      const stored = (await loadNotes(playing.id, lang)) as Notes | null;
+      if (stored) {
+        cache.current.set(key, stored);
+        return stored;
+      }
+
       // Label and genres are cheap and the model would otherwise guess at them.
       const extra = await trackDetails(playing.albumId, playing.artistId).catch(() => ({
         label: "",
         genres: [] as string[],
       }));
 
-      return requestNotes({
+      return post<Notes>({
         title: playing.title,
         artists: playing.artists,
         album: playing.album,
@@ -346,8 +368,10 @@ export default function App() {
       });
     })()
       .then((data) => {
+        const fresh = !cache.current.has(key);
         cache.current.set(key, data);
         setNotes(data);
+        if (!fresh) return;
         saveNotes(
           {
             id: playing.id,
@@ -485,6 +509,136 @@ export default function App() {
     const nodes = el.querySelectorAll<HTMLElement>(".note");
     nodes[nodes.length - 1]?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [shown.length, revealAll]);
+
+  // Notes are no longer a finished document — they can grow, shrink and be questioned.
+  // Every change is written straight back to storage, so it survives the track change.
+  const persist = useCallback(
+    (next: Notes) => {
+      if (viewing) {
+        setViewing({ entry: viewing.entry, notes: next });
+        cache.current.set(`${viewing.entry.id}:${viewing.entry.lang}`, next);
+        saveNotes(viewing.entry, next);
+        return;
+      }
+      if (!playing) return;
+      setNotes(next);
+      cache.current.set(`${playing.id}:${lang}`, next);
+      saveNotes(
+        {
+          id: playing.id,
+          lang,
+          title: playing.title,
+          artists: playing.artists,
+          album: playing.album,
+          art: playing.art,
+          at: Date.now(),
+        },
+        next,
+      );
+    },
+    [viewing, playing, lang],
+  );
+
+  const subject = useCallback(() => {
+    if (viewing) {
+      return {
+        title: viewing.entry.title,
+        artists: viewing.entry.artists,
+        album: viewing.entry.album,
+        lang: viewing.entry.lang,
+      };
+    }
+    return {
+      title: playing?.title ?? "",
+      artists: playing?.artists ?? [],
+      album: playing?.album ?? "",
+      released: playing?.released ?? "",
+      isrc: playing?.isrc ?? "",
+      lang,
+    };
+  }, [viewing, playing, lang]);
+
+  const current = viewing ? viewing.notes : notes;
+
+  const askMore = useCallback(async () => {
+    if (!current) return;
+    setBusy("more");
+    setError("");
+    try {
+      const data = await post<Notes>({
+        ...subject(),
+        mode: "more",
+        have: current.notes.map((n) => ({ title: n.title, body: n.body })),
+        rejected: current.rejected ?? [],
+        keys: liveKeys(),
+      });
+      const fresh = (data.notes ?? []).filter(
+        (n) => !current.notes.some((existing) => existing.title === n.title),
+      );
+      if (fresh.length === 0) {
+        setError(t.nothingMore);
+      } else {
+        persist({ ...current, notes: [...current.notes, ...fresh] });
+        setRevealAll(true);
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }, [current, subject, persist, t]);
+
+  // Marking a note wrong removes it and records why, so a later regeneration is told
+  // not to produce it again. The record of what it got wrong is the valuable half.
+  const rejectNote = useCallback(
+    (note: Note) => {
+      if (!current) return;
+      persist({
+        ...current,
+        notes: current.notes.filter((n) => n.title !== note.title),
+        answers: (current.answers ?? []).filter((a) => a.about !== note.title),
+        rejected: [...new Set([...(current.rejected ?? []), `${note.title}: ${note.body}`])],
+      });
+    },
+    [current, persist],
+  );
+
+  const ask = useCallback(
+    async (question: string, about: Note | null) => {
+      if (!current || !question.trim()) return;
+      const tag = about ? about.title : "general";
+      setBusy(tag);
+      setError("");
+      try {
+        const data = await post<{ answer: string }>({
+          ...subject(),
+          mode: "ask",
+          question: question.trim(),
+          about: about ? { title: about.title, body: about.body } : null,
+          keys: liveKeys(),
+        });
+        persist({
+          ...current,
+          answers: [
+            ...(current.answers ?? []),
+            {
+              id: `${Date.now()}`,
+              question: question.trim(),
+              about: about ? about.title : null,
+              body: data.answer,
+            },
+          ],
+        });
+        setDraftQ("");
+        setAskingAbout(null);
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setBusy("");
+      }
+    },
+    [current, subject, persist],
+  );
 
   // Quota exhaustion is the one failure a user can actually act on, so it gets said
   // in plain language instead of relaying Google's paragraph of URLs.
@@ -786,8 +940,86 @@ export default function App() {
                     )}
                     <h3>{n.title}</h3>
                     <p>{n.body}</p>
+
+                    <div className="note-actions">
+                      <button
+                        onClick={() => {
+                          setAskingAbout(askingAbout === n.title ? null : n.title);
+                          setDraftQ("");
+                        }}
+                      >
+                        {t.askAbout}
+                      </button>
+                      <button className="reject" onClick={() => rejectNote(n)}>
+                        {t.markWrong}
+                      </button>
+                    </div>
+
+                    {askingAbout === n.title && (
+                      <form
+                        className="ask"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          ask(draftQ, n);
+                        }}
+                      >
+                        <input
+                          autoFocus
+                          value={draftQ}
+                          placeholder={t.askPlaceholder}
+                          onChange={(e) => setDraftQ(e.target.value)}
+                        />
+                        <button disabled={!draftQ.trim() || busy === n.title}>
+                          {busy === n.title ? t.asking : t.askSend}
+                        </button>
+                      </form>
+                    )}
+
+                    {(activeNotes.answers ?? [])
+                      .filter((a) => a.about === n.title)
+                      .map((a) => (
+                        <div className="answer" key={a.id}>
+                          <p className="q">{a.question}</p>
+                          <p>{a.body}</p>
+                        </div>
+                      ))}
                   </article>
                 ))}
+
+                {(activeNotes.answers ?? [])
+                  .filter((a) => a.about === null)
+                  .map((a) => (
+                    <div className="answer standalone" key={a.id}>
+                      <p className="q">{a.question}</p>
+                      <p>{a.body}</p>
+                    </div>
+                  ))}
+
+                <div className="conversation">
+                  <button onClick={askMore} disabled={busy === "more"}>
+                    {busy === "more" ? t.thinking : t.moreNotes}
+                  </button>
+                  <form
+                    className="ask"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      ask(draftQ, null);
+                      setAskingAbout(null);
+                    }}
+                  >
+                    <input
+                      value={askingAbout === null ? draftQ : ""}
+                      placeholder={t.askGeneral}
+                      onChange={(e) => {
+                        setAskingAbout(null);
+                        setDraftQ(e.target.value);
+                      }}
+                    />
+                    <button disabled={!draftQ.trim() || busy === "general"}>
+                      {busy === "general" ? t.asking : t.askSend}
+                    </button>
+                  </form>
+                </div>
 
                 {pending > 0 && (
                   <div className="pending">
