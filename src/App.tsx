@@ -5,6 +5,7 @@ import {
   recentlyPlayed,
   trackDetails,
   next as skipNext,
+  transferTo,
   pause,
   play,
   previous as skipPrev,
@@ -22,6 +23,7 @@ import { STRINGS, storedLang, storeLang, type Lang } from "./i18n";
 import { accentFrom } from "./palette";
 import { matchesLang, schedule } from "./notes-logic";
 import { Keys, liveKeys } from "./Keys";
+import { onPlayer, startPlayer, type PlayerState } from "./player";
 import { History } from "./History";
 import {
   type Entry,
@@ -150,6 +152,7 @@ export default function App() {
   const [reload, setReload] = useState(0);
   const [keyCount, setKeyCount] = useState(liveKeys().length);
   const [wide, setWide] = useState(() => localStorage.getItem("ln.wide") === "1");
+  const [player, setPlayer] = useState<PlayerState>({ status: "off" });
   // null = we have not tried to control playback yet. false = this account can't.
   const [canControl, setCanControl] = useState<boolean | null>(null);
   const [controlNote, setControlNote] = useState("");
@@ -341,6 +344,14 @@ export default function App() {
       alive = false;
     };
   }, [notes, playing?.id, lang]);
+
+  useEffect(() => onPlayer(setPlayer), []);
+
+  // The player is only worth registering once there is an account behind it.
+  useEffect(() => {
+    if (!connected || DEMO || canControl === false) return;
+    startPlayer();
+  }, [connected, canControl]);
 
   // The sleeve sets the page's accent colour.
   useEffect(() => {
@@ -817,6 +828,11 @@ export default function App() {
     if (before) setPlaying(before);
   }, [t]);
 
+  const playHere = useCallback(async () => {
+    if (player.status !== "ready") return;
+    await run(() => transferTo(player.deviceId));
+  }, [player, run]);
+
   const save = useCallback(() => {
     const next = draft.trim();
     if (!next) return;
@@ -1015,6 +1031,23 @@ export default function App() {
                   </svg>
                 </button>
               </div>
+            )}
+
+            {!viewing && player.status !== "off" && (
+              <p className="player-line">
+                {player.status === "loading" && t.playerStarting}
+                {player.status === "ready" && (
+                  <button className="link" onClick={playHere}>
+                    {t.playHere}
+                  </button>
+                )}
+                {player.status === "unsupported" &&
+                  (player.reason === "premium"
+                    ? t.playerPremium
+                    : player.reason === "reconnect"
+                      ? t.playerReconnect
+                      : player.reason)}
+              </p>
             )}
 
             {controlNote && (

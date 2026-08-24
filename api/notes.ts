@@ -38,7 +38,10 @@ Note kinds, pick whichever the evidence actually supports:
   origin     — where the song came from: the demo, the commission, the argument, the debt
   room       — what happened at the recording: who was there, what broke, what was improvised
   personnel  — who actually played, wrote, engineered or produced, especially uncredited
-  sample     — what it samples, interpolates, quotes, or what later sampled it
+  sample     — what it samples, interpolates, quotes, or what later sampled it. The
+               evidence may list related recordings outright; those are the good ones
+  version    — the listener is on an edit, remaster or live take rather than the
+               original, and something about it differs
   lyric      — what a specific line actually refers to, when that is documented and not guessed
   moment     — a thing audible at a specific point in the recording
   afterlife  — what happened to it after release: lawsuits, chart facts, covers, reuse
@@ -255,7 +258,15 @@ export default async function handler(req: any, res: any) {
       return res.end(JSON.stringify(await describePool([])));
     }
     return res.end(
-        JSON.stringify(await gather(title, artist, q.get("isrc") ?? "", q.get("album") ?? "")),
+        JSON.stringify(
+          await gather(
+            title,
+            artist,
+            q.get("isrc") ?? "",
+            q.get("album") ?? "",
+            Number(q.get("duration") ?? 0),
+          ),
+        ),
       );
   }
 
@@ -337,7 +348,13 @@ export default async function handler(req: any, res: any) {
       );
     }
 
-    const evidence = await gather(title, artists[0], (body.isrc ?? "").trim(), body.album ?? "");
+    const evidence = await gather(
+      title,
+      artists[0],
+      (body.isrc ?? "").trim(),
+      body.album ?? "",
+      body.durationMs ?? 0,
+    );
     const hebrew = body.lang === "he";
     const evidenceBlock = evidence.text
       ? `EVIDENCE\n${evidence.text}\n\nEND EVIDENCE\n\n`

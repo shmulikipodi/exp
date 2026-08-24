@@ -267,6 +267,14 @@ button.ghost:hover { color: var(--dim); background: none; }
 }
 .transport button.big:hover { filter: brightness(1.08); background: var(--accent); }
 
+.player-line {
+  margin: 14px 0 0;
+  font: 12px var(--mono);
+  color: var(--faint);
+  max-width: 34ch;
+}
+.player-line .link { font: inherit; color: var(--accent); border-bottom-color: var(--accent-dim); }
+
 .control-note {
   margin: 12px 0 0;
   font-size: 12px;
@@ -366,6 +374,7 @@ button.ghost:hover { color: var(--dim); background: none; }
 .kind.room, .kind.moment { color: #d9a05b; }
 .kind.sample, .kind.personnel { color: #7fb3d5; }
 .kind.afterlife { color: #b98cc9; }
+.kind.version { color: #8fbf9f; }
 
 .note h3 {
   font-family: var(--display);

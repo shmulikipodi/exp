@@ -49,6 +49,20 @@ async function json(url: string, timeoutMs = 4500, tries = 2): Promise<any> {
   return null; // evidence is best-effort — never fail the request over it
 }
 
+/** Recording-to-recording links: what it samples, what sampled it, what it covers.
+ *  Prime liner-notes material, and it was being fetched and thrown away. */
+function lineage(relations: any[]): string[] {
+  const out: string[] = [];
+  for (const r of relations ?? []) {
+    const other = r?.recording;
+    if (!other?.title) continue;
+    const who = other["artist-credit"]?.[0]?.name;
+    const direction = r.direction === "backward" ? "this was " : "this ";
+    out.push(`  - ${direction}${r.type}: "${other.title}"${who ? ` by ${who}` : ""}`);
+  }
+  return [...new Set(out)];
+}
+
 /** Relations on a recording or work, flattened to "role: person" lines. */
 function credits(relations: any[]): string[] {
   const out: string[] = [];
@@ -62,15 +76,20 @@ function credits(relations: any[]): string[] {
   return [...new Set(out)];
 }
 
-async function musicbrainz(title: string, artist: string, isrc: string): Promise<Evidence> {
+async function musicbrainz(
+  title: string,
+  artist: string,
+  isrc: string,
+  playingMs = 0,
+): Promise<Evidence> {
   // An ISRC identifies the exact recording. Searching by title matches alternate
   // takes, remasters and covers just as happily as the thing actually playing.
   if (isrc) {
     const byIsrc = await json(
-      `${MB}/isrc/${encodeURIComponent(isrc)}?inc=artist-rels+work-rels+releases+artist-credits&fmt=json`,
+      `${MB}/isrc/${encodeURIComponent(isrc)}?inc=artist-rels+work-rels+releases+artist-credits+recording-rels&fmt=json`,
     );
     const match = (byIsrc?.recordings ?? []).find((r: any) => sameSong(r?.title, title));
-    if (match?.id) return describeRecording(match, match.id, artist, true);
+    if (match?.id) return describeRecording(match, match.id, artist, true, playingMs);
   }
 
   const query = encodeURIComponent(`recording:"${clean(title)}" AND artist:"${clean(artist)}"`);
@@ -80,11 +99,11 @@ async function musicbrainz(title: string, artist: string, isrc: string): Promise
 
   await sleep(600);
   const rec = await json(
-    `${MB}/recording/${hit.id}?inc=artist-rels+work-rels+releases+artist-credits&fmt=json`,
+    `${MB}/recording/${hit.id}?inc=artist-rels+work-rels+releases+artist-credits+recording-rels&fmt=json`,
   );
   if (!rec) return { text: "", sources: [] };
 
-  return describeRecording(rec, hit.id, artist, false);
+  return describeRecording(rec, hit.id, artist, false, playingMs);
 }
 
 /** Turns a MusicBrainz recording into the lines a liner note is actually built from. */
@@ -93,6 +112,7 @@ async function describeRecording(
   id: string,
   artist: string,
   exact: boolean,
+  playingMs = 0,
 ): Promise<Evidence> {
   const lines = credits(rec.relations);
 
@@ -115,15 +135,24 @@ async function describeRecording(
     "label-info"
   ]?.[0]?.label?.name;
 
+  const links = lineage(rec.relations);
+
   const body = [
     `MusicBrainz credits for "${rec.title}" — ${rec["artist-credit"]?.[0]?.name ?? artist}`,
     exact
       ? "This entry was matched by ISRC, so it is definitely the recording being played."
       : "Matched by title and artist, so check it is not an alternate take, remaster or cover.",
     rec.length ? `Recording length: ${Math.round(rec.length / 1000)}s` : "",
+    rec.length && playingMs && Math.abs(rec.length - playingMs) > 5000
+      ? `VERSION MISMATCH: the track playing is ${Math.round(playingMs / 1000)}s but this ` +
+        `catalogue entry is ${Math.round(rec.length / 1000)}s. The listener is on a different ` +
+        `cut — an edit, a remaster, a live take or an extended version. Worth one note if you ` +
+        `can say which, and a reason to distrust any timing in this entry.`
+      : "",
     first ? `Earliest release date on file: ${first}` : "",
     label ? `Label: ${label}` : "",
     lines.length ? `Credits:\n${[...new Set(lines)].map((l) => `  - ${l}`).join("\n")}` : "",
+    links.length ? `Related recordings:\n${links.join("\n")}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -175,7 +204,7 @@ async function wikipedia(title: string, artist: string, album = ""): Promise<Evi
 // 3. Every question and every "more notes" for the same track was re-running the whole
 // gather — four MusicBrainz round-trips with 1.1s of deliberate spacing between them,
 // for credits already in hand. Warm instances keep this; a cold one just pays once.
-const BUDGET_MS = 7000;
+const BUDGET_MS = 9000;
 
 function withBudget<T>(work: Promise<T>, fallback: T): Promise<T> {
   return Promise.race([
@@ -193,22 +222,22 @@ export async function gather(
   artist: string,
   isrc = "",
   album = "",
+  durationMs = 0,
 ): Promise<Evidence> {
-  const key = `${isrc}|${title}|${artist}|${album}`.toLowerCase();
+  const key = `${isrc}|${title}|${artist}|${album}|${durationMs}`.toLowerCase();
   const hit = evidenceCache.get(key);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
 
   const empty = { text: "", sources: [] as [string, string][] };
-  const [mb, wp, albumWp] = await withBudget(
-    Promise.all([
-      musicbrainz(title, artist, isrc).catch(() => empty),
-      wikipedia(title, artist, album).catch(() => empty),
-      // Most tracks have no article of their own but sit on an album that does, and it
-      // usually describes the same sessions. Fetched alongside, it costs no time.
-      album ? wikipediaOn(`${album} ${artist} album`, album).catch(() => empty) : empty,
-    ]),
-    [empty, empty, empty],
-  );
+  // Each source gets its own clock. Racing them as a group meant one slow catalogue
+  // lookup threw away an encyclopedia article that had already arrived.
+  const [mb, wp, albumWp] = await Promise.all([
+    withBudget(musicbrainz(title, artist, isrc, durationMs).catch(() => empty), empty),
+    withBudget(wikipedia(title, artist, album).catch(() => empty), empty),
+    // Most tracks have no article of their own but sit on an album that does, and it
+    // usually describes the same sessions. Fetched alongside, it costs no time.
+    album ? withBudget(wikipediaOn(`${album} ${artist} album`, album).catch(() => empty), empty) : empty,
+  ]);
 
   // Two articles about the same record would otherwise be handed over twice.
   const seen = new Set(wp.sources.map(([url]) => url));
@@ -264,7 +293,7 @@ async function wikipediaOn(term: string, label: string): Promise<Evidence> {
 /** Who the act is: formation, place, line-up. Not the song that happens to be playing. */
 export async function gatherArtist(artist: string): Promise<Evidence> {
   const blank = { text: "", sources: [] as [string, string][] };
-  const [mb, wp] = await withBudget(Promise.all([
+  const [mb, wp] = await Promise.all([
     (async () => {
       const found = await json(
         `${MB}/artist/?query=artist:"${clean(artist)}"&fmt=json&limit=3`,
@@ -301,9 +330,9 @@ export async function gatherArtist(artist: string): Promise<Evidence> {
           [`https://musicbrainz.org/artist/${hit.id}`, `MusicBrainz — ${full.name}`] as [string, string],
         ],
       };
-    })().catch(() => ({ text: "", sources: [] as [string, string][] })),
-    wikipediaOn(`${artist} band musician`, artist).catch(() => blank),
-  ]), [blank, blank]);
+    })().catch(() => blank),
+    withBudget(wikipediaOn(`${artist} band musician`, artist).catch(() => blank), blank),
+  ]);
 
   return {
     text: [mb.text, wp.text].filter(Boolean).join("\n\n---\n\n"),
@@ -314,7 +343,7 @@ export async function gatherArtist(artist: string): Promise<Evidence> {
 /** The record as a whole: when it was made, who made it, what it did. */
 export async function gatherAlbum(album: string, artist: string): Promise<Evidence> {
   const blank = { text: "", sources: [] as [string, string][] };
-  const [mb, wp] = await withBudget(Promise.all([
+  const [mb, wp] = await Promise.all([
     (async () => {
       const found = await json(
         `${MB}/release-group/?query=releasegroup:"${clean(album)}" AND artist:"${clean(artist)}"&fmt=json&limit=3`,
@@ -342,9 +371,9 @@ export async function gatherAlbum(album: string, artist: string): Promise<Eviden
           ],
         ],
       };
-    })().catch(() => ({ text: "", sources: [] as [string, string][] })),
-    wikipediaOn(`${album} ${artist} album`, album).catch(() => blank),
-  ]), [blank, blank]);
+    })().catch(() => blank),
+    withBudget(wikipediaOn(`${album} ${artist} album`, album).catch(() => blank), blank),
+  ]);
 
   return {
     text: [mb.text, wp.text].filter(Boolean).join("\n\n---\n\n"),

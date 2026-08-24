@@ -7,7 +7,7 @@ const TOKEN = "https://accounts.spotify.com/api/token";
 // screen a friend has to agree to.
 const SCOPES =
   "user-read-currently-playing user-read-playback-state user-modify-playback-state " +
-  "user-read-recently-played";
+  "user-read-recently-played streaming user-read-email user-read-private";
 
 const LS = {
   clientId: "ln.clientId",
@@ -129,7 +129,7 @@ export function logout() {
 // transport), so this is not hypothetical.
 let refreshing: Promise<string> | null = null;
 
-async function accessToken(): Promise<string> {
+export async function accessToken(): Promise<string> {
   const token = localStorage.getItem(LS.access);
   const expires = Number(localStorage.getItem(LS.expires) ?? 0);
   if (token && Date.now() < expires) return token;
@@ -326,4 +326,24 @@ export async function recentlyPlayed(): Promise<string[]> {
     seen.add(`${(track.artists ?? []).map((a: any) => a.name).join(", ")} — ${track.name}`);
   }
   return [...seen];
+}
+
+/** Hands playback to a device — the in-page player, once it has registered one. */
+export async function transferTo(deviceId: string): Promise<ControlResult> {
+  try {
+    const res = await fetch("https://api.spotify.com/v1/me/player", {
+      method: "PUT",
+      headers: {
+        authorization: `Bearer ${await accessToken()}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ device_ids: [deviceId], play: true }),
+    });
+    if (res.ok || res.status === 204) return "ok";
+    if (res.status === 403) return "premium-required";
+    if (res.status === 401) return "needs-reconnect";
+    return "failed";
+  } catch {
+    return "failed";
+  }
 }
