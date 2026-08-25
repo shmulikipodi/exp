@@ -596,7 +596,7 @@ button.ghost:hover { color: var(--dim); background: none; }
    colours, three or four of them, drifting past each other. */
 .lyrics-part { position: relative; isolation: isolate; overflow: clip; }
 
-.wash {
+.hue-wash {
   position: absolute;
   inset: 0;
   z-index: -1;
@@ -606,7 +606,7 @@ button.ghost:hover { color: var(--dim); background: none; }
 
 /* The photograph underneath, blurred past recognition. Gradients alone come out flat;
    a real sleeve has grain and gradation that this puts back. */
-.wash-art {
+.hue-art {
   position: absolute;
   inset: -20%;
   background-size: cover;
@@ -620,22 +620,30 @@ button.ghost:hover { color: var(--dim); background: none; }
 /* Each colour gets a soft field of its own, moving slowly enough that you notice it
    only if you look. Screen blending keeps them lighting each other rather than
    painting over each other, which is the difference between light and paint. */
-.wash-blob {
+.hue-blob {
   position: absolute;
-  width: 95%;
-  height: 70%;
+  inset-inline-start: var(--x);
+  inset-block-start: var(--y);
+  width: 115%;
+  height: 68%;
+  translate: -50% -50%;
   border-radius: 50%;
-  background: radial-gradient(closest-side, hsl(var(--c) / 0.85), hsl(var(--c) / 0) 100%);
+  background: radial-gradient(
+    closest-side,
+    hsl(var(--c) / 0.95),
+    hsl(var(--c) / 0.45) 55%,
+    hsl(var(--c) / 0) 100%
+  );
   mix-blend-mode: screen;
-  filter: blur(26px);
+  filter: blur(14px);
   will-change: transform;
   animation: drift calc(30s + var(--i) * 7s) ease-in-out infinite alternate;
   animation-delay: calc(var(--i) * -6s);
 }
-.wash-blob:nth-child(2) { inset-block-start: -12%; inset-inline-start: -22%; }
-.wash-blob:nth-child(3) { inset-block-start: 18%;  inset-inline-start: 24%; }
-.wash-blob:nth-child(4) { inset-block-start: 46%;  inset-inline-start: -18%; }
-.wash-blob:nth-child(5) { inset-block-start: 62%;  inset-inline-start: 20%; }
+.hue-blob:nth-child(2) { --x: 24%; --y: 16%; }
+.hue-blob:nth-child(3) { --x: 78%; --y: 40%; }
+.hue-blob:nth-child(4) { --x: 28%; --y: 72%; }
+.hue-blob:nth-child(5) { --x: 74%; --y: 96%; }
 
 @keyframes drift {
   from { transform: translate3d(0, 0, 0) scale(1); }
@@ -645,10 +653,10 @@ button.ghost:hover { color: var(--dim); background: none; }
 
 /* Some sleeves are pale, and pale colours are not a background you can read on. The
    veil buys the contrast back without flattening the colour underneath it. */
-.wash-veil {
+.hue-veil {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(11,10,9,0.42) 0%, rgba(11,10,9,0.30) 45%, rgba(11,10,9,0.62) 100%);
+  background: linear-gradient(180deg, rgba(11,10,9,0.42) 0%, rgba(11,10,9,0.28) 45%, rgba(11,10,9,0.62) 100%);
 }
 
 .lyrics-part .rail-body { padding-inline-end: 3vw; }
@@ -663,6 +671,9 @@ button.ghost:hover { color: var(--dim); background: none; }
   opacity: calc(1 - var(--d, 0) * 0.13);
   filter: blur(calc(var(--d, 0) * 1.15px));
   transform-origin: left center;
+  /* Pale sleeves happen. A shadow the colour of the page keeps white words white
+     no matter which four colours the record turned out to be. */
+  text-shadow: 0 1px 14px rgba(11,10,9,0.55);
   transition: opacity 0.4s ease, filter 0.4s ease, color 0.4s ease, transform 0.4s ease;
   will-change: filter, opacity;
 }
@@ -677,7 +688,7 @@ button.ghost:hover { color: var(--dim); background: none; }
   opacity: 1;
   filter: none;
   transform: scale(1.03);
-  text-shadow: 0 2px 24px hsl(var(--h) 70% 60% / 0.35);
+  text-shadow: 0 1px 14px rgba(11,10,9,0.6), 0 2px 28px hsl(var(--h) 70% 60% / 0.4);
 }
 .lyric-line.plain { white-space: pre-wrap; opacity: 0.85; filter: none; font-size: 20px; }
 
@@ -735,7 +746,7 @@ button.ghost:hover { color: var(--dim); background: none; }
 @media (prefers-reduced-motion: reduce) {
   .lyric-line { filter: none; transition: none; }
   .lyric-line.now { text-shadow: none; transform: none; }
-  .wash-blob { animation: none; }
+  .hue-blob { animation: none; }
 }
 
 /* pictures — the artist, the sleeve, the thumbnails beside every row */

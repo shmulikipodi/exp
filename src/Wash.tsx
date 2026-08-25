@@ -11,18 +11,18 @@ import type { Swatch } from "./palette";
  */
 export function Wash({ art, colors }: { art?: string; colors: Swatch[] }) {
   return (
-    <div className="wash" aria-hidden="true">
+    <div className="hue-wash" aria-hidden="true">
       {/* Always present, art or not: the blobs are positioned by their place among
           these children, and a missing sleeve must not shift all four of them. */}
-      <div className="wash-art" style={art ? { backgroundImage: `url("${art}")` } : undefined} />
+      <div className="hue-art" style={art ? { backgroundImage: `url("${art}")` } : undefined} />
       {colors.map((c, i) => (
         <span
           key={`${c.h}-${i}`}
-          className="wash-blob"
+          className="hue-blob"
           style={{ "--c": `${c.h} ${c.s}% ${c.l}%`, "--i": i } as CSSProperties}
         />
       ))}
-      <div className="wash-veil" />
+      <div className="hue-veil" />
     </div>
   );
 }
