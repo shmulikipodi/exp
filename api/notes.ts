@@ -340,6 +340,7 @@ export default async function handler(req: any, res: any) {
             q.get("isrc") ?? "",
             q.get("album") ?? "",
             Number(q.get("duration") ?? 0),
+            q.get("lang") ?? "en",
           ),
         ),
       );
@@ -434,6 +435,7 @@ export default async function handler(req: any, res: any) {
       (body.isrc ?? "").trim(),
       body.album ?? "",
       body.durationMs ?? 0,
+      body.lang ?? "en",
     );
     const hebrew = body.lang === "he";
 

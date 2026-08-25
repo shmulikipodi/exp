@@ -5,19 +5,56 @@
 
 const UA = "exp/1.0 ( https://github.com/ )";
 const MB = "https://musicbrainz.org/ws/2";
-const WP = "https://en.wikipedia.org/w/api.php";
+const wpApi = (lang: string) => `https://${lang}.wikipedia.org/w/api.php`;
+
+/**
+ * Which Wikipedias to ask. English is always one of them and usually the deepest, but
+ * it is thin or absent for music that was never sung in it — an Israeli song may have a
+ * substantial Hebrew article and no English one at all. The script the artist and title
+ * are written in says more about where the article will be than the interface language
+ * does.
+ */
+const SCRIPTS: [RegExp, string][] = [
+  [/[\u0590-\u05FF]/, "he"],
+  [/[\u0600-\u06FF]/, "ar"],
+  [/[\u0400-\u04FF]/, "ru"],
+  [/[\u0370-\u03FF]/, "el"],
+  [/[\u3040-\u30FF]/, "ja"],
+  [/[\uAC00-\uD7AF]/, "ko"],
+  [/[\u4E00-\u9FFF]/, "zh"],
+  [/[\u0900-\u097F]/, "hi"],
+];
+
+export function pickWikis(title: string, artist: string, uiLang = "en"): string[] {
+  const langs = ["en"];
+  const text = `${title} ${artist}`;
+  for (const [script, lang] of SCRIPTS) {
+    if (script.test(text) && !langs.includes(lang)) langs.push(lang);
+  }
+  // The reader's own language is worth a look even for a song written in another —
+  // it often carries names and terms in the form they will be read in.
+  if (uiLang !== "en" && !langs.includes(uiLang)) langs.push(uiLang);
+  return langs.slice(0, 3);
+}
 
 export type Evidence = { text: string; sources: [string, string][] };
 
 const clean = (s: string) => s.replace(/["\\]/g, " ").trim();
 
-/** Loose title comparison — "Song (Remastered 2011)" is still the same song. */
+/**
+ * Loose title comparison — "Song (Remastered 2011)" is still the same song.
+ *
+ * Letters in any script, not just a-z. Stripping to [a-z0-9] reduced every Hebrew and
+ * Japanese title to an empty string, so the guard rejected every article written about
+ * them — the songs that most need a non-English Wikipedia were the ones that could
+ * never reach it.
+ */
 export function sameSong(a: string | undefined, b: string): boolean {
   const norm = (v: string) =>
     v
       .toLowerCase()
       .replace(/\([^)]*\)|\[[^\]]*\]/g, "")
-      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
       .trim();
   const x = norm(a ?? "");
   const y = norm(b);
@@ -161,10 +198,16 @@ async function describeRecording(
   return { text: body, sources: [[url, `MusicBrainz — ${rec.title}`]] };
 }
 
-async function wikipedia(title: string, artist: string, album = ""): Promise<Evidence> {
-  const term = encodeURIComponent(`${title} ${artist} song`);
+async function wikipedia(
+  title: string,
+  artist: string,
+  album = "",
+  lang = "en",
+): Promise<Evidence> {
+  const api = wpApi(lang);
+  const term = encodeURIComponent(`${title} ${artist}`);
   const search = await json(
-    `${WP}?action=query&list=search&srsearch=${term}&srlimit=5&format=json&origin=*`,
+    `${api}?action=query&list=search&srsearch=${term}&srlimit=5&format=json&origin=*`,
   );
   const results = search?.query?.search ?? [];
 
@@ -181,22 +224,23 @@ async function wikipedia(title: string, artist: string, album = ""): Promise<Evi
   const aboutTheSong = Boolean(songPage);
 
   const extract = await json(
-    `${WP}?action=query&prop=extracts&explaintext=1&redirects=1&format=json&origin=*&titles=${encodeURIComponent(page.title)}`,
+    `${api}?action=query&prop=extracts&explaintext=1&redirects=1&format=json&origin=*&titles=${encodeURIComponent(page.title)}`,
   );
   const pages = extract?.query?.pages ?? {};
   const text = (Object.values(pages)[0] as any)?.extract ?? "";
   if (!text) return { text: "", sources: [] };
 
-  const url = `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, "_"))}`;
+  const tag = lang === "en" ? "Wikipedia" : `Wikipedia (${lang})`;
+  const url = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, "_"))}`;
   return {
     text:
-      `Wikipedia — ${page.title}\n` +
+      `${tag} — ${page.title}\n` +
       (aboutTheSong
         ? ""
         : `NOTE: this article is about the album, not this specific track. Do not assume ` +
           `anything in it describes the recording that is playing unless it says so.\n`) +
       text.slice(0, 7000),
-    sources: [[url, `Wikipedia — ${page.title}`]],
+    sources: [[url, `${tag} — ${page.title}`]],
   };
 }
 
@@ -223,29 +267,41 @@ export async function gather(
   isrc = "",
   album = "",
   durationMs = 0,
+  uiLang = "en",
 ): Promise<Evidence> {
-  const key = `${isrc}|${title}|${artist}|${album}|${durationMs}`.toLowerCase();
+  const wikis = pickWikis(title, artist, uiLang);
+  const key = `${isrc}|${title}|${artist}|${album}|${durationMs}|${wikis.join(",")}`.toLowerCase();
   const hit = evidenceCache.get(key);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
 
   const empty = { text: "", sources: [] as [string, string][] };
   // Each source gets its own clock. Racing them as a group meant one slow catalogue
   // lookup threw away an encyclopedia article that had already arrived.
-  const [mb, wp, albumWp] = await Promise.all([
+  const [mb, ...articles] = await Promise.all([
     withBudget(musicbrainz(title, artist, isrc, durationMs).catch(() => empty), empty),
-    withBudget(wikipedia(title, artist, album).catch(() => empty), empty),
+    // Every language edition worth asking, at once.
+    ...wikis.map((lang) =>
+      withBudget(wikipedia(title, artist, album, lang).catch(() => empty), empty),
+    ),
     // Most tracks have no article of their own but sit on an album that does, and it
     // usually describes the same sessions. Fetched alongside, it costs no time.
-    album ? withBudget(wikipediaOn(`${album} ${artist} album`, album).catch(() => empty), empty) : empty,
+    album
+      ? withBudget(wikipediaOn(`${album} ${artist}`, album, wikis[0]).catch(() => empty), empty)
+      : empty,
   ]);
 
-  // Two articles about the same record would otherwise be handed over twice.
-  const seen = new Set(wp.sources.map(([url]) => url));
-  const extra = albumWp.sources.some(([url]) => seen.has(url)) ? empty : albumWp;
+  // The same article must not arrive twice under different searches.
+  const seen = new Set<string>();
+  const kept = articles.filter((a) => {
+    const url = a.sources[0]?.[0];
+    if (!a.text || !url || seen.has(url)) return false;
+    seen.add(url);
+    return true;
+  });
 
   const value: Evidence = {
-    text: [mb.text, wp.text, extra.text].filter(Boolean).join("\n\n---\n\n"),
-    sources: [...mb.sources, ...wp.sources, ...extra.sources],
+    text: [mb.text, ...kept.map((a) => a.text)].filter(Boolean).join("\n\n---\n\n"),
+    sources: [...mb.sources, ...kept.flatMap((a) => a.sources)],
   };
 
   evidenceCache.set(key, { at: Date.now(), value });
@@ -257,9 +313,10 @@ export async function gather(
 
 /* ---------- artist and album, gathered separately ---------- */
 
-async function wikipediaOn(term: string, label: string): Promise<Evidence> {
+async function wikipediaOn(term: string, label: string, lang = "en"): Promise<Evidence> {
+  const api = wpApi(lang);
   const search = await json(
-    `${WP}?action=query&list=search&srsearch=${encodeURIComponent(term)}&srlimit=5&format=json&origin=*`,
+    `${api}?action=query&list=search&srsearch=${encodeURIComponent(term)}&srlimit=5&format=json&origin=*`,
   );
   const results = search?.query?.search ?? [];
 
@@ -274,17 +331,18 @@ async function wikipediaOn(term: string, label: string): Promise<Evidence> {
   if (!page?.title) return { text: "", sources: [] };
 
   const extract = await json(
-    `${WP}?action=query&prop=extracts&explaintext=1&redirects=1&format=json&origin=*&titles=${encodeURIComponent(page.title)}`,
+    `${api}?action=query&prop=extracts&explaintext=1&redirects=1&format=json&origin=*&titles=${encodeURIComponent(page.title)}`,
   );
   const text = (Object.values(extract?.query?.pages ?? {})[0] as any)?.extract ?? "";
   if (!text) return { text: "", sources: [] };
 
+  const tag = lang === "en" ? "Wikipedia" : `Wikipedia (${lang})`;
   return {
-    text: `${label} — Wikipedia: ${page.title}\n${text.slice(0, 9000)}`,
+    text: `${label} — ${tag}: ${page.title}\n${text.slice(0, 9000)}`,
     sources: [
       [
-        `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, "_"))}`,
-        `Wikipedia — ${page.title}`,
+        `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, "_"))}`,
+        `${tag} — ${page.title}`,
       ],
     ],
   };
