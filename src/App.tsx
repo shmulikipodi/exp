@@ -208,9 +208,20 @@ export default function App() {
 
   // CSS zoom rather than a font-size scale: every size in this stylesheet is in px, so
   // scaling the root font would move nothing.
+  //
+  // But zoom scales the CSS pixel, which means 100dvh renders taller than the window —
+  // at 1.2 the layout became 1080px inside a 900px screen and pushed the transport off
+  // the bottom. So the full-height columns measure against a value that divides it back
+  // out, and the window keeps its actual height at any zoom.
   useEffect(() => {
-    document.documentElement.style.zoom = String(zoom);
+    const root = document.documentElement;
+    root.style.zoom = String(zoom);
     localStorage.setItem("ln.zoom", String(zoom));
+
+    const fit = () => root.style.setProperty("--app-h", `${window.innerHeight / zoom}px`);
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
   }, [zoom]);
 
   const toggleRail = useCallback((m: RailMode) => {

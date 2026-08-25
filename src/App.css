@@ -1,6 +1,8 @@
 /* exp — a record sleeve, not a dashboard. */
 
 :root {
+  /* Set from JS: the window height with any zoom divided back out. */
+  --app-h: 100dvh;
   /* Three voices: one that announces, one that is read at length, one that labels.
      Four candidate sets; the picker writes data-type on the root element. */
   --display: "Fraunces Variable", Georgia, serif;
@@ -104,7 +106,7 @@
   position: relative;
   display: flex;
   align-items: stretch;
-  height: 100dvh;
+  height: var(--app-h);
   overflow: hidden;
 }
 
@@ -221,7 +223,7 @@ button.ghost:hover { color: var(--dim); background: none; }
      against 100dvh ignored the padding and pushed the transport off the bottom of a
      short window. Whatever is left over is split either side rather than dumped on one,
      so a short window reads as margin instead of a slab beside the sleeve. */
-  width: min(100%, calc(92dvh - 245px));
+  width: min(100%, calc(var(--app-h) * 0.92 - 245px));
   margin-inline: auto;
   aspect-ratio: 1;
   object-fit: cover;
@@ -466,7 +468,7 @@ button.ghost:hover { color: var(--dim); background: none; }
     flex-direction: column;
     flex: 0 0 clamp(272px, 22vw, 420px);
     min-width: 0;
-    height: 100dvh;
+    height: var(--app-h);
     /* Clears the controls, which are pinned to this same edge. The tabs were being
        covered by them, which is why the panel looked like it had no header at all. */
     padding: 68px 3vw 0 0;
@@ -1034,7 +1036,7 @@ footer { max-width: 30em; margin-top: 48px; padding-top: 24px; border-top: 1px s
 [dir="rtl"] .pip { margin-left: -1.5px; }
 
 @media (max-width: 900px) {
-  .stage { position: relative; display: block; height: 100dvh; overflow: hidden; }
+  .stage { position: relative; display: block; height: var(--app-h); overflow: hidden; }
 
   /* The sleeve overlays the notes and collapses as you scroll: the picture gets the
      whole first screen, then leaves everything else behind as a compact bar.
@@ -1102,7 +1104,7 @@ footer { max-width: 30em; margin-top: 48px; padding-top: 24px; border-top: 1px s
      value predated the transport row and was around ninety pixels short, which is what
      put text behind the buttons. */
   .stream {
-    height: 100dvh;
+    height: var(--app-h);
     padding: calc(62vw + 250px) 20px 44vh;
   }
   .note { padding-bottom: 8vh; }
