@@ -132,7 +132,7 @@
   gap: 18px;
   padding: 10px 20px 14px;
   border-top: 1px solid var(--line);
-  background: rgba(11, 10, 9, 0.72);
+  background: rgba(11, 10, 9, 0.5);
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
@@ -649,7 +649,7 @@ button.ghost:hover { color: var(--dim); background: none; }
 .hue-wash.page .hue-blob { opacity: 0.75; }
 .hue-wash.page .hue-art { opacity: 0.38; }
 .hue-wash.page .hue-veil {
-  background: linear-gradient(180deg, rgba(11,10,9,0.58) 0%, rgba(11,10,9,0.70) 40%, rgba(11,10,9,0.86) 100%);
+  background: linear-gradient(180deg, rgba(11,10,9,0.56) 0%, rgba(11,10,9,0.66) 45%, rgba(11,10,9,0.70) 100%);
 }
 
 .lyrics-part .rail-body { padding-inline-end: 3vw; }
@@ -688,12 +688,8 @@ button.ghost:hover { color: var(--dim); background: none; }
 /* A four-line lyric on a tall screen looks lost; a hundred-line one needs the room.
    Nothing to do about that in CSS, but the first and last lines can at least scroll
    to the middle, which is where the focus is. */
-.lyrics-part .rail-body::before,
-.lyrics-part .rail-body::after {
-  content: "";
-  display: block;
-  height: 38%;
-}
+.lyrics-part .rail-body::before { content: ""; display: block; height: 26%; }
+.lyrics-part .rail-body::after { content: ""; display: block; height: 74%; }
 
 /* ---------- the same thing, given the whole window ---------- */
 .lyric-full {
@@ -731,8 +727,8 @@ button.ghost:hover { color: var(--dim); background: none; }
   --lyric-gap: clamp(14px, 2.4vh, 26px);
 }
 .lyric-full-body::-webkit-scrollbar { display: none; }
-.lyric-full-body::before,
-.lyric-full-body::after { content: ""; display: block; height: 42%; }
+.lyric-full-body::before { content: ""; display: block; height: 26%; }
+.lyric-full-body::after { content: ""; display: block; height: 76%; }
 .lyric-full .lyric-line { font-size: clamp(26px, 3.6vw, 46px); }
 .lyric-credit { padding: 0 clamp(24px, 6vw, 80px) 18px; margin: 0; }
 

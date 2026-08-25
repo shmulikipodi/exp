@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Strings } from "./i18n";
 import { Wash } from "./Wash";
-import { LyricLines, type Line } from "./LyricLines";
+import { LyricLines, scrollToLine, type Line } from "./LyricLines";
 import { paletteFrom, type Swatch } from "./palette";
 
 type Loaded = { found: boolean; synced: boolean; lines: Line[]; plain: string };
@@ -68,9 +68,10 @@ export function Lyrics({
 
   useEffect(() => {
     if (active < 0) return;
-    document
-      .querySelector(`.lyric-full [data-l="${active}"]`)
-      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    scrollToLine(
+      document.querySelector(".lyric-full-body"),
+      document.querySelector(`.lyric-full [data-l="${active}"]`),
+    );
   }, [active]);
 
   return (

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Strings } from "./i18n";
-import { LyricLines, type Line } from "./LyricLines";
+import { LyricLines, scrollToLine, type Line } from "./LyricLines";
 import {
   albumProfile,
   artistProfile,
@@ -127,9 +127,10 @@ export function Rail({
 
   useEffect(() => {
     if (!modes.includes("lyrics") || active < 0) return;
-    document
-      .querySelector(`.rail [data-l="${active}"]`)
-      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    scrollToLine(
+      document.querySelector(".lyrics-part .rail-body"),
+      document.querySelector(`.rail [data-l="${active}"]`),
+    );
   }, [modes.includes("lyrics"), active]);
 
   const label: Record<RailMode, string> = {
