@@ -1,10 +1,43 @@
 /* exp — a record sleeve, not a dashboard. */
 
 :root {
-  /* Three voices: one that announces, one that is read at length, one that labels. */
-  --display: "Fraunces Variable", "Iowan Old Style", Georgia, serif;
-  --serif: "Newsreader Variable", Georgia, "Times New Roman", serif;
-  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Three voices: one that announces, one that is read at length, one that labels.
+     Four candidate sets; the picker writes data-type on the root element. */
+  --display: "Fraunces Variable", Georgia, serif;
+  --serif: "Newsreader Variable", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+
+/* A — the current one. High-contrast display serif, warm reading serif. */
+:root[data-type="a"] {
+  --display: "Fraunces Variable", Georgia, serif;
+  --serif: "Newsreader Variable", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+
+/* B — magazine. Playfair's thin strokes against a serif built for long text. */
+:root[data-type="b"] {
+  --display: "Playfair Display Variable", Georgia, serif;
+  --serif: "Source Serif 4 Variable", Georgia, serif;
+  --mono: "JetBrains Mono Variable", ui-monospace, Menlo, monospace;
+}
+
+/* C — the sleeve. Instrument Serif is a display face with real personality; Literata
+   was drawn for reading on screens for a long time without tiring. */
+:root[data-type="c"] {
+  --display: "Instrument Serif", Georgia, serif;
+  --serif: "Literata Variable", Georgia, serif;
+  --mono: "JetBrains Mono Variable", ui-monospace, Menlo, monospace;
+}
+
+/* D — softer. A grotesque that headlines without shouting, over a bookish serif. */
+:root[data-type="d"] {
+  --display: "Bricolage Grotesque Variable", system-ui, sans-serif;
+  --serif: "Lora Variable", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+
+:root {
   /* --h is the hue sampled from the album art; everything accented derives from it. */
   --h: 38;
   --accent: hsl(var(--h) 62% 66%);
@@ -190,12 +223,13 @@ button.ghost:hover { color: var(--dim); background: none; }
    the line read as missing. */
 .pip {
   position: absolute;
-  bottom: 100%;
-  /* They were floating well clear of the bar and reading as separate from it. */
-  margin-bottom: 2px;
+  /* Centred on the bar and crossing it. Sitting them above kept reading as a separate
+     row of marks; a thin tick through the line belongs to it. */
+  top: 50%;
+  margin-top: -6px;
   margin-left: -1.5px;
   width: 3px;
-  height: 7px;
+  height: 12px;
   border-radius: 2px;
   background: rgba(243, 237, 227, 0.32);
   transition: background 0.4s, box-shadow 0.4s, height 0.3s;
@@ -208,7 +242,8 @@ button.ghost:hover { color: var(--dim); background: none; }
 
 .pip.lit {
   background: var(--accent);
-  height: 9px;
+  height: 14px;
+  margin-top: -7px;
   box-shadow: 0 0 9px -1px var(--accent);
 }
 
@@ -518,6 +553,7 @@ button.ghost:hover { color: var(--dim); background: none; }
 .conversation > .row { width: 100%; }
 .conversation button { padding: 10px 18px; font-size: 13px; }
 .toggle { color: var(--faint); }
+.typeset { font-family: var(--mono); }
 .toggle.on { color: var(--accent); border-color: var(--accent-dim); background: rgba(243,237,227,0.04); }
 .conversation .ask { margin-top: 0; width: 100%; }
 

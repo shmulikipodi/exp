@@ -10,6 +10,16 @@ import "@fontsource-variable/frank-ruhl-libre"
 import "@fontsource/ibm-plex-mono/400.css"
 import "@fontsource/ibm-plex-mono/500.css"
 import "@fontsource/ibm-plex-mono/600.css"
+// Candidates for the type picker. Only the chosen set is ever rendered; the browser
+// fetches a face when a rule actually asks for it, so the others cost nothing to keep.
+import "@fontsource/instrument-serif"
+import "@fontsource-variable/literata"
+import "@fontsource-variable/source-serif-4"
+import "@fontsource-variable/playfair-display"
+import "@fontsource-variable/jetbrains-mono"
+import "@fontsource-variable/lora"
+import "@fontsource-variable/bricolage-grotesque"
+import "@fontsource-variable/heebo"
 import './index.css'
 import App from './App.tsx'
 

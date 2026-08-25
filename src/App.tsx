@@ -167,6 +167,9 @@ export default function App() {
   const [controlNote, setControlNote] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
+  // Temporary: four candidate type sets, switchable so they can be seen rather than
+  // described. Once one is chosen the rest come out.
+  const [typeSet, setTypeSet] = useState(() => localStorage.getItem("ln.type") ?? "a");
   const [historyCount, setHistoryCount] = useState(0);
   const [viewing, setViewing] = useState<{ entry: Entry; notes: Notes } | null>(null);
   const [busy, setBusy] = useState("");
@@ -183,6 +186,11 @@ export default function App() {
   const lastManual = useRef(0);
 
   const t = STRINGS[lang];
+
+  useEffect(() => {
+    document.documentElement.dataset.type = typeSet;
+    localStorage.setItem("ln.type", typeSet);
+  }, [typeSet]);
 
   useEffect(() => {
     document.documentElement.dir = t.dir;
@@ -388,11 +396,15 @@ export default function App() {
     };
   }, [notes, playing?.id, lang]);
 
+  // The in-tab player is parked. src/player.ts and the streaming scope are left in
+  // place — removing the scope would force everyone through a fresh login — but the SDK
+  // is not loaded and the button is not shown. Flip this to bring it back.
+  const PLAYER_ENABLED = false;
+
   useEffect(() => onPlayer(setPlayer), []);
 
-  // The player is only worth registering once there is an account behind it.
   useEffect(() => {
-    if (!connected || DEMO || canControl === false) return;
+    if (!PLAYER_ENABLED || !connected || DEMO || canControl === false) return;
     startPlayer();
   }, [connected, canControl]);
 
@@ -914,6 +926,13 @@ export default function App() {
   const chrome = (
     <>
       <div className="controls">
+        <button
+          className="typeset"
+          title="Try a different typeface set"
+          onClick={() => setTypeSet((v) => ({ a: "b", b: "c", c: "d", d: "a" })[v] ?? "a")}
+        >
+          type {typeSet.toUpperCase()}
+        </button>
         {track && (
           <button onClick={() => setShowLyrics(true)}>{t.lyricsButton}</button>
         )}
@@ -1140,7 +1159,7 @@ export default function App() {
               </p>
             )}
 
-            {!viewing && player.status !== "off" && (
+            {PLAYER_ENABLED && !viewing && player.status !== "off" && (
               <p className="player-line">
                 {player.status === "loading" && t.playerStarting}
                 {player.status === "ready" && (
