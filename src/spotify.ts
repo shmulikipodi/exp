@@ -387,3 +387,108 @@ export async function playSearch(query: string): Promise<ControlResult> {
 /** Somewhere to send a reader who clicked an artist — their page, not a guess at a URI. */
 export const spotifySearchUrl = (query: string, type: "artist" | "track") =>
   `https://open.spotify.com/search/${encodeURIComponent(query)}/${type}s`;
+
+/* ---------- panels ---------- */
+
+export type QueueItem = {
+  id: string;
+  title: string;
+  artists: string[];
+  art: string;
+  durationMs: number;
+};
+
+/** Everything Spotify will play next, not just the one after this. */
+export async function queueList(limit = 15): Promise<QueueItem[]> {
+  const data = await get("me/player/queue").catch(() => null);
+  return (data?.queue ?? [])
+    .filter((q: any) => q?.type === "track" && q?.id)
+    .slice(0, limit)
+    .map((item: any) => ({
+      id: item.id,
+      title: item.name,
+      artists: (item.artists ?? []).map((a: any) => a.name),
+      art: item.album?.images?.[item.album.images.length - 1]?.url ?? "",
+      durationMs: item.duration_ms ?? 0,
+    }));
+}
+
+export type ArtistProfile = {
+  name: string;
+  image: string;
+  genres: string[];
+  followers: number;
+  url: string;
+  topTracks: { id: string; title: string; art: string }[];
+};
+
+export async function artistProfile(artistId: string): Promise<ArtistProfile | null> {
+  if (!artistId) return null;
+  const [artist, top] = await Promise.all([
+    get(`artists/${artistId}`).catch(() => null),
+    get(`artists/${artistId}/top-tracks?market=from_token`).catch(() => null),
+  ]);
+  if (!artist?.name) return null;
+  return {
+    name: artist.name,
+    image: artist.images?.[0]?.url ?? "",
+    genres: (artist.genres ?? []).slice(0, 6),
+    followers: artist.followers?.total ?? 0,
+    url: artist.external_urls?.spotify ?? "",
+    topTracks: (top?.tracks ?? []).slice(0, 5).map((tr: any) => ({
+      id: tr.id,
+      title: tr.name,
+      art: tr.album?.images?.[tr.album.images.length - 1]?.url ?? "",
+    })),
+  };
+}
+
+export type AlbumProfile = {
+  name: string;
+  art: string;
+  released: string;
+  label: string;
+  total: number;
+  url: string;
+  tracks: { id: string; number: number; title: string; durationMs: number }[];
+};
+
+export async function albumProfile(albumId: string): Promise<AlbumProfile | null> {
+  if (!albumId) return null;
+  const album = await get(`albums/${albumId}`).catch(() => null);
+  if (!album?.name) return null;
+  return {
+    name: album.name,
+    art: album.images?.[0]?.url ?? "",
+    released: album.release_date ?? "",
+    label: album.label ?? "",
+    total: album.total_tracks ?? 0,
+    url: album.external_urls?.spotify ?? "",
+    tracks: (album.tracks?.items ?? []).map((tr: any) => ({
+      id: tr.id,
+      number: tr.track_number ?? 0,
+      title: tr.name,
+      durationMs: tr.duration_ms ?? 0,
+    })),
+  };
+}
+
+/** Play a known track directly — the queue and tracklists hand us real ids. */
+export async function playTrack(id: string): Promise<ControlResult> {
+  try {
+    const res = await fetch("https://api.spotify.com/v1/me/player/play", {
+      method: "PUT",
+      headers: {
+        authorization: `Bearer ${await accessToken()}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ uris: [`spotify:track:${id}`] }),
+    });
+    if (res.ok || res.status === 204) return "ok";
+    if (res.status === 404) return "no-device";
+    if (res.status === 403) return "premium-required";
+    return "failed";
+  } catch {
+    return "failed";
+  }
+}

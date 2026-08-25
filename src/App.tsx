@@ -29,7 +29,7 @@ import { onPlayer, startPlayer, type PlayerState } from "./player";
 import { History } from "./History";
 import { Linked } from "./Linked";
 import { Lyrics } from "./Lyrics";
-import { LyricsRail } from "./LyricsRail";
+import { Rail, type RailMode } from "./Rail";
 import {
   type Entry,
   forget,
@@ -170,6 +170,9 @@ export default function App() {
   const [controlNote, setControlNote] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
+  const [rail, setRail] = useState<RailMode | null>(
+    () => (localStorage.getItem("ln.rail") as RailMode | null) ?? "lyrics",
+  );
   // Temporary: four candidate type sets, switchable so they can be seen rather than
   // described. Once one is chosen the rest come out.
   const [typeSet, setTypeSet] = useState(() => localStorage.getItem("ln.type") ?? "a");
@@ -189,6 +192,10 @@ export default function App() {
   const lastManual = useRef(0);
 
   const t = STRINGS[lang];
+
+  useEffect(() => {
+    if (rail) localStorage.setItem("ln.rail", rail);
+  }, [rail]);
 
   useEffect(() => {
     document.documentElement.dataset.type = typeSet;
@@ -752,7 +759,8 @@ export default function App() {
   const askTopic = useCallback(
     async (topic: "artist" | "album") => {
       const target = targetOf();
-      if (!current || !target) return;
+      // A second request while the first is in flight achieves nothing but spend.
+      if (!current || !target || busy !== "") return;
       const who = viewing ? viewing.entry.artists.join(", ") : (playing?.artists ?? []).join(", ");
       const album = viewing ? viewing.entry.album : (playing?.album ?? "");
       const heading = topic === "artist" ? t.artistHeading(who) : t.albumHeading(album);
@@ -794,7 +802,7 @@ export default function App() {
         setBusy("");
       }
     },
-    [current, subject, persist, targetOf, viewing, playing, t],
+    [current, subject, persist, targetOf, viewing, playing, busy, t],
   );
 
   // The model can place a moment to within a few seconds; a listener can place it
@@ -953,7 +961,12 @@ export default function App() {
           {{ a: "Bevan", b: "Playfair", c: "Archivo", d: "Bricolage" }[typeSet] ?? typeSet}
         </button>
         {track && (
-          <button onClick={() => setShowLyrics(true)}>{t.lyricsButton}</button>
+          <button
+            className={rail ? "on" : ""}
+            onClick={() => setRail(rail ? null : ((localStorage.getItem("ln.rail") as RailMode) ?? "lyrics"))}
+          >
+            {t.lyricsButton}
+          </button>
         )}
         <button onClick={() => setShowHistory(true)}>{t.historyButton(historyCount)}</button>
         <button onClick={() => setShowKeys(true)}>{t.keysButton(keyCount)}</button>
@@ -1459,14 +1472,30 @@ export default function App() {
             {error && <p className="error">{shownError}</p>}
           </section>
 
-          <LyricsRail
-            t={t}
-            title={track.title}
-            artist={track.artists[0] ?? ""}
-            album={track.album}
-            durationMs={track.durationMs}
-            progressMs={progress}
-          />
+          {rail && (
+            <Rail
+              t={t}
+              mode={rail}
+              setMode={setRail}
+              onClose={() => setRail(null)}
+              title={track.title}
+              artist={track.artists[0] ?? ""}
+              album={track.album}
+              albumId={track.albumId}
+              artistId={track.artistId}
+              trackId={track.id}
+              durationMs={track.durationMs}
+              progressMs={progress}
+              lang={lang}
+              artistText={
+                (activeNotes?.answers ?? []).find((a) => a.about === "topic:artist")?.body
+              }
+              albumText={
+                (activeNotes?.answers ?? []).find((a) => a.about === "topic:album")?.body
+              }
+              onAsk={askTopic}
+            />
+          )}
         </>
       )}
     </main>
