@@ -30,6 +30,7 @@ import { History } from "./History";
 import { Linked } from "./Linked";
 import { Lyrics } from "./Lyrics";
 import { Rail, type RailMode } from "./Rail";
+import { Settings } from "./Settings";
 import {
   type Entry,
   forget,
@@ -170,9 +171,17 @@ export default function App() {
   const [controlNote, setControlNote] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
-  const [rail, setRail] = useState<RailMode | null>(
-    () => (localStorage.getItem("ln.rail") as RailMode | null) ?? "lyrics",
-  );
+  const [rails, setRails] = useState<RailMode[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("ln.rails") ?? "null");
+      if (Array.isArray(saved)) return saved as RailMode[];
+    } catch {
+      /* first run, or something unparseable */
+    }
+    return ["lyrics"];
+  });
+  const [zoom, setZoom] = useState(() => Number(localStorage.getItem("ln.zoom") ?? 1) || 1);
+  const [showSettings, setShowSettings] = useState(false);
   // Temporary: four candidate type sets, switchable so they can be seen rather than
   // described. Once one is chosen the rest come out.
   const [typeSet, setTypeSet] = useState(() => localStorage.getItem("ln.type") ?? "a");
@@ -194,8 +203,19 @@ export default function App() {
   const t = STRINGS[lang];
 
   useEffect(() => {
-    if (rail) localStorage.setItem("ln.rail", rail);
-  }, [rail]);
+    localStorage.setItem("ln.rails", JSON.stringify(rails));
+  }, [rails]);
+
+  // CSS zoom rather than a font-size scale: every size in this stylesheet is in px, so
+  // scaling the root font would move nothing.
+  useEffect(() => {
+    document.documentElement.style.zoom = String(zoom);
+    localStorage.setItem("ln.zoom", String(zoom));
+  }, [zoom]);
+
+  const toggleRail = useCallback((m: RailMode) => {
+    setRails((open) => (open.includes(m) ? open.filter((x) => x !== m) : [...open, m]));
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.type = typeSet;
@@ -954,24 +974,37 @@ export default function App() {
     <>
       <div className="controls">
         <button
-          className="typeset"
-          title="Try a different typeface set"
-          onClick={() => setTypeSet((v) => ({ a: "b", b: "c", c: "d", d: "a" })[v] ?? "a")}
+          className="gear"
+          title={t.settingsOpen}
+          aria-label={t.settingsOpen}
+          onClick={() => setShowSettings(true)}
         >
-          {{ a: "Bevan", b: "Playfair", c: "Archivo", d: "Bricolage" }[typeSet] ?? typeSet}
+          ☰
         </button>
-        {track && (
-          <button
-            className={rail ? "on" : ""}
-            onClick={() => setRail(rail ? null : ((localStorage.getItem("ln.rail") as RailMode) ?? "lyrics"))}
-          >
-            {t.lyricsButton}
-          </button>
-        )}
-        <button onClick={() => setShowHistory(true)}>{t.historyButton(historyCount)}</button>
-        <button onClick={() => setShowKeys(true)}>{t.keysButton(keyCount)}</button>
-        <button onClick={toggleLang}>{t.other}</button>
       </div>
+      {showSettings && (
+        <Settings
+          t={t}
+          onClose={() => setShowSettings(false)}
+          toggleLang={toggleLang}
+          typeSet={typeSet}
+          setTypeSet={setTypeSet}
+          zoom={zoom}
+          setZoom={setZoom}
+          rails={rails}
+          toggleRail={toggleRail}
+          openKeys={() => {
+            setShowSettings(false);
+            setShowKeys(true);
+          }}
+          openHistory={() => {
+            setShowSettings(false);
+            setShowHistory(true);
+          }}
+          historyCount={historyCount}
+          keyCount={keyCount}
+        />
+      )}
       {showKeys && <Keys t={t} onClose={closeKeys} />}
       {showLyrics && track && (
         <Lyrics
@@ -1472,12 +1505,11 @@ export default function App() {
             {error && <p className="error">{shownError}</p>}
           </section>
 
-          {rail && (
+          {rails.length > 0 && (
             <Rail
               t={t}
-              mode={rail}
-              setMode={setRail}
-              onClose={() => setRail(null)}
+              modes={rails}
+              toggle={toggleRail}
               title={track.title}
               artist={track.artists[0] ?? ""}
               album={track.album}

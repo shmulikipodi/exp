@@ -434,6 +434,24 @@ button.ghost:hover { color: var(--dim); background: none; }
   .answer.standalone.topic { display: none; }
 }
 
+/* ---------- settings ---------- */
+
+.panel.settings { max-width: 460px; }
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 14px; }
+.chips button {
+  padding: 6px 12px;
+  font: 12px var(--mono);
+  color: var(--dim);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.chips button:hover { color: var(--ink); border-color: rgba(243,237,227,0.3); background: none; }
+.chips button.on { color: var(--accent); border-color: var(--accent-dim); background: rgba(243,237,227,0.05); }
+.zoom-now { font: 12px var(--mono); color: var(--faint); min-width: 44px; text-align: center; }
+.panel.settings .help { margin: -8px 0 18px; font-size: 12px; }
+.panel.settings .rail-section { margin-top: 4px; }
+
 /* ---------- the panel ---------- */
 
 /* Hidden until there is genuinely room for a third column. Below that the words live
@@ -456,43 +474,48 @@ button.ghost:hover { color: var(--dim); background: none; }
   }
 }
 
-.rail-head {
+/* Each open section takes an equal share of the column and scrolls inside itself, so
+   two of them side by side is two halves rather than one long scroll. */
+.rail-part {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+.rail-part:first-child { border-top: none; }
+.rail-part > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 0 14px 3vw;
+  padding: 12px 0 8px 3vw;
   flex-shrink: 0;
-}
-.rail-head nav { display: flex; gap: 4px; flex-wrap: wrap; }
-.rail-head nav button {
-  padding: 5px 10px;
-  font: 11px var(--mono);
+  font: 600 10px var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
   color: var(--faint);
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 7px;
 }
-.rail-head nav button:hover { color: var(--ink); background: rgba(243,237,227,0.06); }
-.rail-head nav button.on { color: var(--accent); border-color: var(--accent-dim); background: rgba(243,237,227,0.04); }
-.rail-x {
-  flex-shrink: 0;
-  width: 26px;
-  height: 26px;
+.rail-part > header button {
+  width: 22px;
+  height: 22px;
   padding: 0;
-  font-size: 17px;
+  font-size: 15px;
   line-height: 1;
   color: var(--faint);
   background: none;
   border: none;
 }
-.rail-x:hover { color: var(--ink); background: none; }
+.rail-part > header button:hover { color: var(--ink); background: none; }
+[dir="rtl"] .rail-part > header { letter-spacing: 0; text-transform: none; font-family: inherit; font-size: 12px; }
+
+.rail-none { padding: 20px 3vw; }
 
 .rail-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 0 22vh 3vw;
+  padding: 0 0 24px 3vw;
   scrollbar-width: none;
   -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 5%, #000 90%, transparent 100%);
   mask-image: linear-gradient(180deg, transparent 0, #000 5%, #000 90%, transparent 100%);
@@ -858,6 +881,16 @@ footer { max-width: 30em; margin-top: 48px; padding-top: 24px; border-top: 1px s
   gap: 8px;
   z-index: 3;
 }
+.gear {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--dim);
+}
+.gear:hover { color: var(--ink); }
+
 .controls button {
   padding: 6px 12px;
   font: 12px var(--mono);

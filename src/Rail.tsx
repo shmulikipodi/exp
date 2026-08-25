@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Strings } from "./i18n";
 import {
   albumProfile,
@@ -26,9 +26,8 @@ const mmss = (ms: number) => {
  */
 export function Rail({
   t,
-  mode,
-  setMode,
-  onClose,
+  modes,
+  toggle,
   title,
   artist,
   album,
@@ -43,9 +42,8 @@ export function Rail({
   onAsk,
 }: {
   t: Strings;
-  mode: RailMode;
-  setMode: (m: RailMode) => void;
-  onClose: () => void;
+  modes: RailMode[];
+  toggle: (m: RailMode) => void;
   title: string;
   artist: string;
   album: string;
@@ -69,7 +67,7 @@ export function Rail({
   const [profileTried, setProfileTried] = useState(false);
 
   useEffect(() => {
-    if (mode !== "lyrics") return;
+    if (!modes.includes("lyrics")) return;
     setLines(null);
     let alive = true;
     const params = new URLSearchParams({ title, artist, album, duration: String(durationMs) });
@@ -80,30 +78,30 @@ export function Rail({
     return () => {
       alive = false;
     };
-  }, [mode, title, artist, album, durationMs]);
+  }, [modes.includes("lyrics"), title, artist, album, durationMs]);
 
   useEffect(() => {
-    if (mode !== "queue") return;
+    if (!modes.includes("queue")) return;
     queueList().then(setQueue).catch(() => setQueue([]));
-  }, [mode, trackId]);
+  }, [modes.includes("queue"), trackId]);
 
   useEffect(() => {
-    if (mode !== "artist") return;
+    if (!modes.includes("artist")) return;
     setProfileTried(false);
     artistProfile(artistId)
       .then(setWho)
       .catch(() => setWho(null))
       .finally(() => setProfileTried(true));
-  }, [mode, artistId]);
+  }, [modes.includes("artist"), artistId]);
 
   useEffect(() => {
-    if (mode !== "album") return;
+    if (!modes.includes("album")) return;
     setProfileTried(false);
     albumProfile(albumId)
       .then(setRecord)
       .catch(() => setRecord(null))
       .finally(() => setProfileTried(true));
-  }, [mode, albumId]);
+  }, [modes.includes("album"), albumId]);
 
   // Prose for the two panels that have any, written on demand rather than up front —
   // and asked for exactly once per track. onAsk is rebuilt on most renders, so an
@@ -111,53 +109,56 @@ export function Rail({
   // metered API, which is the worst possible shape for this bug.
   const asked = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (mode !== "artist" && mode !== "album") return;
-    const already = mode === "artist" ? artistText : albumText;
-    const key = `${mode}:${trackId}:${lang}`;
-    if (already || asked.current.has(key)) return;
-    asked.current.add(key);
-    onAsk(mode);
-  }, [mode, trackId, lang, artistText, albumText, onAsk]);
+    for (const topic of ["artist", "album"] as const) {
+      if (!modes.includes(topic)) continue;
+      const already = topic === "artist" ? artistText : albumText;
+      const key = `${topic}:${trackId}:${lang}`;
+      if (already || asked.current.has(key)) continue;
+      asked.current.add(key);
+      onAsk(topic);
+    }
+  }, [modes.join(","), trackId, lang, artistText, albumText, onAsk]);
 
   const seconds = progressMs / 1000;
   const active = lines ? lines.reduce((f, l, i) => (l.at <= seconds ? i : f), -1) : -1;
 
   useEffect(() => {
-    if (mode !== "lyrics" || active < 0) return;
+    if (!modes.includes("lyrics") || active < 0) return;
     document
       .querySelector(`.rail [data-l="${active}"]`)
       ?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [mode, active]);
+  }, [modes.includes("lyrics"), active]);
 
-  const tabs: [RailMode, string][] = [
-    ["lyrics", t.railLyrics],
-    ["queue", t.railQueue],
-    ["artist", t.railArtist],
-    ["album", t.railAlbum],
-  ];
+  const label: Record<RailMode, string> = {
+    lyrics: t.railLyrics,
+    queue: t.railQueue,
+    artist: t.railArtist,
+    album: t.railAlbum,
+  };
 
-  return (
-    <aside className="rail" lang={lang}>
-      <header className="rail-head">
-        <nav>
-          {tabs.map(([id, label]) => (
-            <button
-              key={id}
-              className={mode === id ? "on" : ""}
-              onClick={() => setMode(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
-        <button className="rail-x" title={t.railClose} aria-label={t.railClose} onClick={onClose}>
+  /** One open section. Several of them share the column's height between them. */
+  const section = (id: RailMode, body: ReactNode) => (
+    <section className="rail-part" key={id}>
+      <header>
+        <span>{label[id]}</span>
+        <button title={t.railClose} aria-label={t.railClose} onClick={() => toggle(id)}>
           ×
         </button>
       </header>
+      <div className="rail-body">{body}</div>
+    </section>
+  );
 
-      <div className="rail-body">
-        {mode === "lyrics" &&
-          (lines === null ? (
+  return (
+    <aside className="rail" lang={lang}>
+      {modes.length === 0 && (
+        <p className="help rail-none">{t.railNone}</p>
+      )}
+
+      {modes.includes("lyrics") &&
+        section(
+          "lyrics",
+          lines === null ? (
             <p className="loading">{t.loading}</p>
           ) : lines.length === 0 ? (
             <p className="help">{t.lyricsNone}</p>
@@ -172,10 +173,13 @@ export function Rail({
                 {line.text || "·"}
               </p>
             ))
-          ))}
+          ),
+        )}
 
-        {mode === "queue" &&
-          (queue === null ? (
+      {modes.includes("queue") &&
+        section(
+          "queue",
+          queue === null ? (
             <p className="loading">{t.loading}</p>
           ) : queue.length === 0 ? (
             <p className="help">{t.railEmpty}</p>
@@ -194,9 +198,12 @@ export function Rail({
                 </li>
               ))}
             </ul>
-          ))}
+          ),
+        )}
 
-        {mode === "artist" && (
+      {modes.includes("artist") &&
+        section(
+          "artist",
           <>
             {who?.image && <img className="rail-hero round" src={who.image} alt="" />}
             {!who && profileTried && <h3>{artist}</h3>}
@@ -227,10 +234,12 @@ export function Rail({
                 </ul>
               </>
             )}
-          </>
+          </>,
         )}
 
-        {mode === "album" && (
+      {modes.includes("album") &&
+        section(
+          "album",
           <>
             {record?.art && <img className="rail-hero" src={record.art} alt="" />}
             {!record && profileTried && <h3>{album}</h3>}
@@ -260,9 +269,8 @@ export function Rail({
                 ))}
               </ul>
             )}
-          </>
+          </>,
         )}
-      </div>
     </aside>
   );
 }
