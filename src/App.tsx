@@ -22,13 +22,14 @@ import {
   type Playing,
 } from "./spotify";
 import { STRINGS, storedLang, storeLang, type Lang } from "./i18n";
-import { accentFrom } from "./palette";
+import { accentFrom, paletteFrom, type Swatch } from "./palette";
 import { matchesLang, schedule } from "./notes-logic";
 import { Keys, liveKeys } from "./Keys";
 import { onPlayer, startPlayer, type PlayerState } from "./player";
 import { History } from "./History";
 import { Linked } from "./Linked";
 import { Lyrics } from "./Lyrics";
+import { Wash } from "./Wash";
 import { Rail, type RailMode } from "./Rail";
 import { Settings } from "./Settings";
 import {
@@ -192,6 +193,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [revealAll, setRevealAll] = useState(false);
   const [accent, setAccent] = useState<string | null>(null);
+  const [palette, setPalette] = useState<Swatch[]>([]);
   const [showKeys, setShowKeys] = useState(false);
   const [reload, setReload] = useState(0);
   const [keyCount, setKeyCount] = useState(liveKeys().length);
@@ -534,11 +536,17 @@ export default function App() {
     startPlayer();
   }, [connected, canControl]);
 
-  // The sleeve sets the page's accent colour.
+  // The sleeve sets the page's accent colour, and the field of light behind everything.
   useEffect(() => {
-    if (!playing?.art) return setAccent(null);
+    if (!playing?.art) {
+      setAccent(null);
+      setPalette([]);
+      return;
+    }
     let alive = true;
-    accentFrom(playing.art).then((h) => alive && setAccent(h));
+    const art = playing.art;
+    accentFrom(art).then((h) => alive && setAccent(h));
+    paletteFrom(art).then((p) => alive && setPalette(p));
     return () => {
       alive = false;
     };
@@ -1201,7 +1209,7 @@ export default function App() {
       }
     >
       {chrome}
-      {track?.art && <div className="wash" style={{ backgroundImage: `url(${track.art})` }} />}
+      <Wash art={track?.art} colors={palette} page />
 
       {!track && (
         <div className="idle">
@@ -1570,7 +1578,6 @@ export default function App() {
               title={track.title}
               artist={track.artists[0] ?? ""}
               album={track.album}
-              art={track.art}
               albumId={track.albumId}
               artistId={track.artistId}
               trackId={track.id}

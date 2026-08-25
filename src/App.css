@@ -178,24 +178,6 @@
 
 .stage .idle { margin: auto; text-align: center; }
 
-/* Album art bled out behind everything, the way light comes off a sleeve. */
-.wash {
-  position: fixed;
-  inset: -25%;
-  z-index: -1;
-  background-size: cover;
-  background-position: center;
-  filter: blur(100px) saturate(1.7);
-  opacity: 0.3;
-  transition: background-image 0.6s ease;
-}
-.wash::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(11,10,9,0.5) 0%, rgba(11,10,9,0.93) 65%);
-}
-
 /* ---------- setup / connect ---------- */
 
 .setup h1 {
@@ -659,6 +641,17 @@ button.ghost:hover { color: var(--dim); background: none; }
   background: linear-gradient(180deg, rgba(11,10,9,0.42) 0%, rgba(11,10,9,0.28) 45%, rgba(11,10,9,0.62) 100%);
 }
 
+/* The whole window, not one panel. Behind the notes the colour has to sit further
+   back — that column is prose, and prose needs a page to sit on. */
+/* Slack at the edges: the stage is zoomable, and a fixed box pinned to exactly
+   the viewport can come up short inside a zoomed containing block. */
+.hue-wash.page { position: fixed; inset: -6%; }
+.hue-wash.page .hue-blob { opacity: 0.75; }
+.hue-wash.page .hue-art { opacity: 0.38; }
+.hue-wash.page .hue-veil {
+  background: linear-gradient(180deg, rgba(11,10,9,0.58) 0%, rgba(11,10,9,0.70) 40%, rgba(11,10,9,0.86) 100%);
+}
+
 .lyrics-part .rail-body { padding-inline-end: 3vw; }
 .rail-expand { margin-inline-start: auto; font-size: 13px; opacity: 0.75; }
 .rail-expand:hover { opacity: 1; }
@@ -668,8 +661,11 @@ button.ghost:hover { color: var(--dim); background: none; }
   font: var(--display-weight, 700) 24px/1.28 var(--display);
   letter-spacing: -0.02em;
   color: #f3ede3;
-  opacity: calc(1 - var(--d, 0) * 0.13);
-  filter: blur(calc(var(--d, 0) * 1.15px));
+  /* Blur that stays out of the way until it doesn't: near the focus this is a
+     fraction of a pixel, and it only becomes atmosphere out at the edges. A linear
+     ramp made everything mush two lines from the one being sung. */
+  opacity: calc(1 - var(--d, 0) * 0.105);
+  filter: blur(calc(var(--d, 0) * var(--d, 0) * 0.24px));
   transform-origin: left center;
   /* Pale sleeves happen. A shadow the colour of the page keeps white words white
      no matter which four colours the record turned out to be. */
@@ -679,9 +675,6 @@ button.ghost:hover { color: var(--dim); background: none; }
 }
 [dir="rtl"] .lyric-line { transform-origin: right center; }
 .lyric-line.seekable { cursor: pointer; }
-
-/* Sung already: further back than the lines still coming, the way the eye treats them. */
-.lyric-line.past { opacity: calc(0.72 - var(--d, 0) * 0.11); }
 
 .lyric-line.now {
   color: #fff;

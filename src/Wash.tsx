@@ -9,9 +9,17 @@ import type { Swatch } from "./palette";
  * The blurred artwork sits underneath as a floor, because four gradients can only
  * approximate a photograph and a real sleeve has texture no gradient does.
  */
-export function Wash({ art, colors }: { art?: string; colors: Swatch[] }) {
+export function Wash({
+  art,
+  colors,
+  page = false,
+}: {
+  art?: string;
+  colors: Swatch[];
+  page?: boolean;
+}) {
   return (
-    <div className="hue-wash" aria-hidden="true">
+    <div className={page ? "hue-wash page" : "hue-wash"} aria-hidden="true">
       {/* Always present, art or not: the blobs are positioned by their place among
           these children, and a missing sleeve must not shift all four of them. */}
       <div className="hue-art" style={art ? { backgroundImage: `url("${art}")` } : undefined} />
