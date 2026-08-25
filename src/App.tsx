@@ -949,7 +949,7 @@ export default function App() {
           title="Try a different typeface set"
           onClick={() => setTypeSet((v) => ({ a: "b", b: "c", c: "d", d: "a" })[v] ?? "a")}
         >
-          type {typeSet.toUpperCase()}
+          {{ a: "Bevan", b: "Playfair", c: "Archivo", d: "Bricolage" }[typeSet] ?? typeSet}
         </button>
         {track && (
           <button onClick={() => setShowLyrics(true)}>{t.lyricsButton}</button>

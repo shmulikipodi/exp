@@ -11,15 +11,23 @@
      the sets differed in shape but never in voice. */
   --display-weight: 800;
   --body-weight: 390;
+  /* Note titles normally take the display face a step lighter; a set whose display face
+     has no lighter step overrides these two. */
+  --note-title: var(--display);
+  --note-title-weight: 700;
 }
 
-/* A — heavy high-contrast serif over a light one. The most "record sleeve" of the four. */
+/* A — Bevan over Roboto Slab. Bevan has one weight and is heavy by design; its tight
+   letterforms carry a 40px title and turn muddy at 19px, so note titles are set in
+   Roboto Slab bold instead of shrinking the display face down to them. */
 :root[data-type="a"] {
-  --display: "Fraunces Variable", Georgia, serif;
-  --serif: "Newsreader Variable", Georgia, serif;
+  --display: "Bevan", Georgia, serif;
+  --serif: "Roboto Slab Variable", Georgia, serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
-  --display-weight: 900;
-  --body-weight: 380;
+  --display-weight: 400;
+  --body-weight: 350;
+  --note-title: var(--serif);
+  --note-title-weight: 700;
 }
 
 /* B — magazine. Playfair at its heaviest is dramatic rather than merely large. */
@@ -61,10 +69,14 @@
    was never overridden at all, so every set fell back to the same system font.
    :root[dir=…][data-type=…] outranks :root[data-type=…] whatever the source order. */
 :root[dir="rtl"][data-type="a"] {
-  --display: "Frank Ruhl Libre Variable", Georgia, serif;
+  /* Suez One is the nearest thing Hebrew has to Bevan: a heavy display serif, one
+     weight, built to be large. Frank Ruhl Libre reads underneath it. */
+  --display: "Suez One", Georgia, serif;
   --serif: "Frank Ruhl Libre Variable", "David Libre", Georgia, serif;
-  --display-weight: 800;
+  --display-weight: 400;
   --body-weight: 400;
+  --note-title: var(--serif);
+  --note-title-weight: 700;
 }
 :root[dir="rtl"][data-type="b"] {
   --display: "Heebo Variable", Arial, sans-serif;
@@ -476,9 +488,9 @@ button.ghost:hover { color: var(--dim); background: none; }
 .kind.version { color: #8fbf9f; }
 
 .note h3 {
-  font-family: var(--display);
+  font-family: var(--note-title);
   font-optical-sizing: auto;
-  font-weight: calc(var(--display-weight) - 100);
+  font-weight: var(--note-title-weight);
   font-size: clamp(19px, 1.5vw, 24px);
   line-height: 1.25;
   margin: 0 0 12px;

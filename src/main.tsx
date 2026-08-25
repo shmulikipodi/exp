@@ -23,6 +23,9 @@ import "@fontsource-variable/heebo"
 import "@fontsource-variable/assistant"
 import "@fontsource-variable/rubik"
 import "@fontsource-variable/archivo"
+import "@fontsource/bevan"
+import "@fontsource-variable/roboto-slab"
+import "@fontsource/suez-one"
 import './index.css'
 import App from './App.tsx'
 
