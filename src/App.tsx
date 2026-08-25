@@ -182,6 +182,10 @@ export default function App() {
   });
   const [zoom, setZoom] = useState(() => Number(localStorage.getItem("ln.zoom") ?? 1) || 1);
   const [showSettings, setShowSettings] = useState(false);
+  // Column widths, dragged by hand and remembered. Empty means "whatever the layout
+  // would have chosen", so an untouched app looks the way it was designed to.
+  const [sleeveW, setSleeveW] = useState(() => localStorage.getItem("ln.sleeveW") ?? "");
+  const [railW, setRailW] = useState(() => localStorage.getItem("ln.railW") ?? "");
   // Temporary: four candidate type sets, switchable so they can be seen rather than
   // described. Once one is chosen the rest come out.
   const [typeSet, setTypeSet] = useState(() => localStorage.getItem("ln.type") ?? "a");
@@ -223,6 +227,54 @@ export default function App() {
     window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
   }, [zoom]);
+
+  /**
+   * Drag a divider. Width is measured from the stage edge the column is attached to,
+   * which flips in Hebrew — otherwise dragging left would widen a column on the right.
+   */
+  const drag = useCallback(
+    (which: "sleeve" | "rail") => (down: React.PointerEvent) => {
+      down.preventDefault();
+      const stage = down.currentTarget.parentElement as HTMLElement | null;
+      if (!stage) return;
+      const rtl = document.documentElement.dir === "rtl";
+
+      // The reading column has to survive both dividers. Clamping each one on its own
+      // let the two of them squeeze it to 161px between them, which is not a column.
+      const MIN_NOTES = 340;
+      const widthOf = (sel: string) =>
+        stage.querySelector(sel)?.getBoundingClientRect().width ?? 0;
+
+      const move = (e: PointerEvent) => {
+        const box = stage.getBoundingClientRect();
+        const fromStart = rtl ? box.right - e.clientX : e.clientX - box.left;
+        const fromEnd = rtl ? e.clientX - box.left : box.right - e.clientX;
+
+        if (which === "sleeve") {
+          const room = box.width - widthOf(".rail") - MIN_NOTES;
+          const w = Math.round(Math.min(760, Math.max(300, Math.min(fromStart, room))));
+          setSleeveW(`${w}px`);
+          localStorage.setItem("ln.sleeveW", `${w}px`);
+        } else {
+          const room = box.width - widthOf(".sleeve") - MIN_NOTES;
+          const w = Math.round(Math.min(640, Math.max(240, Math.min(fromEnd, room))));
+          setRailW(`${w}px`);
+          localStorage.setItem("ln.railW", `${w}px`);
+        }
+      };
+
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        document.body.classList.remove("dragging");
+      };
+
+      document.body.classList.add("dragging");
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    },
+    [],
+  );
 
   const toggleRail = useCallback((m: RailMode) => {
     setRails((open) => (open.includes(m) ? open.filter((x) => x !== m) : [...open, m]));
@@ -1101,7 +1153,16 @@ export default function App() {
   }
 
   return (
-    <main className="app stage" style={accent ? ({ "--h": accent } as React.CSSProperties) : undefined}>
+    <main
+      className="app stage"
+      style={
+        {
+          ...(accent ? { "--h": accent } : {}),
+          ...(sleeveW ? { "--sleeve-w": sleeveW } : {}),
+          ...(railW ? { "--rail-w": railW } : {}),
+        } as React.CSSProperties
+      }
+    >
       {chrome}
       {track?.art && <div className="wash" style={{ backgroundImage: `url(${track.art})` }} />}
 
@@ -1272,6 +1333,17 @@ export default function App() {
               </button>
             </p>
           )}
+
+          <div
+            className="grip"
+            role="separator"
+            aria-label={t.resize}
+            onPointerDown={drag("sleeve")}
+            onDoubleClick={() => {
+              setSleeveW("");
+              localStorage.removeItem("ln.sleeveW");
+            }}
+          />
 
           <section className="stream" ref={streamRef}>
             {loading && <p className="loading">{t.loading}</p>}
@@ -1515,6 +1587,19 @@ export default function App() {
 
             {error && <p className="error">{shownError}</p>}
           </section>
+
+          {rails.length > 0 && (
+            <div
+              className="grip"
+              role="separator"
+              aria-label={t.resize}
+              onPointerDown={drag("rail")}
+              onDoubleClick={() => {
+                setRailW("");
+                localStorage.removeItem("ln.railW");
+              }}
+            />
+          )}
 
           {rails.length > 0 && (
             <Rail

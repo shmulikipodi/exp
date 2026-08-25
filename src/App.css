@@ -192,8 +192,8 @@ button.ghost:hover { color: var(--dim); background: none; }
 /* ---------- now playing ---------- */
 
 .sleeve {
-  flex: 0 0 44%;
-  max-width: 620px;
+  flex: 0 0 var(--sleeve-w, 44%);
+  max-width: var(--sleeve-w, 620px);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -466,7 +466,7 @@ button.ghost:hover { color: var(--dim); background: none; }
   .rail {
     display: flex;
     flex-direction: column;
-    flex: 0 0 clamp(272px, 22vw, 420px);
+    flex: 0 0 var(--rail-w, clamp(272px, 22vw, 420px));
     min-width: 0;
     height: var(--app-h);
     /* Clears the controls, which are pinned to this same edge. The tabs were being
@@ -613,6 +613,28 @@ button.ghost:hover { color: var(--dim); background: none; }
 .rail-list li.here b { color: var(--accent); }
 
 .controls button.on { color: var(--accent); border-color: var(--accent-dim); }
+
+/* A divider you can take hold of. Four pixels wide, with a larger invisible target
+   either side, because a four-pixel grab is a test of aim. */
+.grip {
+  display: none;
+  position: relative;
+  flex: 0 0 4px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.grip::after {
+  content: "";
+  position: absolute;
+  inset: 0 -5px;
+}
+.grip:hover, body.dragging .grip { background: var(--accent-dim); }
+/* Nothing should select or hover while a divider is moving. */
+body.dragging { cursor: col-resize; user-select: none; }
+
+@media (min-width: 1180px) {
+  .grip { display: block; }
+}
 
 /* ---------- the notes ---------- */
 
