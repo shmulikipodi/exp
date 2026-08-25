@@ -426,6 +426,14 @@ button.ghost:hover { color: var(--dim); background: none; }
 .jump:not(.sure) { border-style: dashed; opacity: 0.8; }
 
 
+/* Once the panel exists it owns the artist and the album, so the standalone cards come
+   out of the reading column — they were the thing being read, which is why opening the
+   panel appeared to change nothing. Below the breakpoint there is no panel, so they
+   stay. */
+@media (min-width: 1180px) {
+  .answer.standalone.topic { display: none; }
+}
+
 /* ---------- the panel ---------- */
 
 /* Hidden until there is genuinely room for a third column. Below that the words live
@@ -441,7 +449,9 @@ button.ghost:hover { color: var(--dim); background: none; }
     flex: 0 0 clamp(272px, 22vw, 420px);
     min-width: 0;
     height: 100dvh;
-    padding: 26px 3vw 0 0;
+    /* Clears the controls, which are pinned to this same edge. The tabs were being
+       covered by them, which is why the panel looked like it had no header at all. */
+    padding: 68px 3vw 0 0;
     border-inline-start: 1px solid var(--line);
   }
 }
