@@ -573,9 +573,12 @@ export default function App() {
       // shrinks with a transform so the notes still scroll at a normal 1:1 rate.
       const stage = el.parentElement;
       if (stage) {
-        const over = Math.max(1, window.innerWidth * 0.72);
+        const over = Math.max(1, window.innerWidth * 0.62);
         const c = Math.min(1, Math.max(0, el.scrollTop / over));
         stage.style.setProperty("--c", c.toFixed(3));
+        // The controls sit on the picture, so they leave with it. A calc() on opacity
+        // cannot also switch off pointer events, hence the flag.
+        stage.dataset.collapsed = c > 0.8 ? "1" : "0";
       }
 
       const nodes = Array.from(el.querySelectorAll<HTMLElement>(".note"));

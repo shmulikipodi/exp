@@ -822,63 +822,80 @@ footer { max-width: 30em; margin-top: 48px; padding-top: 24px; border-top: 1px s
     z-index: 2;
     display: block;
     max-width: none;
-    /* Leaves room for the controls above the picture rather than on top of it. */
-    padding: 54px 20px 14px;
+    padding: 52px 20px 12px;
     /* Touches pass straight through to the notes underneath. */
     pointer-events: none;
   }
+  .sleeve button, .sleeve a { pointer-events: auto; }
 
-  /* The backdrop is a pseudo-element so it can shrink with the contents. Painting it
-     on .sleeve itself keeps the expanded height — the box never changes, only the
-     transforms inside it — and notes then show through the collapsed bar. */
+  /* Opaque for its whole height, with the fade confined to the last stretch. It used to
+     thin out over the bottom third, so notes scrolling underneath showed through it —
+     which read as a torn edge across the middle of the screen. */
   .sleeve::before {
     content: "";
     position: absolute;
     inset-inline: 0;
     top: 0;
-    height: calc(100% - (72vw + 18px) * var(--c, 0));
+    height: calc(100% - (62vw + 16px) * var(--c, 0));
     background: linear-gradient(
       180deg,
-      rgba(11,10,9,0.98) 66%,
-      rgba(11,10,9,0.9) 84%,
-      rgba(11,10,9,0)
+      var(--bg) 0,
+      var(--bg) 88%,
+      rgba(11, 10, 9, 0.86) 95%,
+      rgba(11, 10, 9, 0)
     );
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
     z-index: -1;
   }
-  .sleeve button, .sleeve a { pointer-events: auto; }
 
   .cover {
     display: block;
-    width: 72vw;
-    margin: 0 auto 18px;
+    width: 62vw;
+    max-width: 260px;
+    margin: 0 auto 16px;
     transform-origin: top center;
     transform: scale(calc(1 - 0.94 * var(--c, 0)));
     opacity: calc(1 - var(--c, 0) * 1.5);
-    box-shadow: 0 26px 64px rgba(0,0,0,0.72), 0 0 0 1px rgba(243,237,227,0.08);
+    box-shadow: 0 22px 52px rgba(0,0,0,0.7), 0 0 0 1px rgba(243,237,227,0.08);
   }
 
   /* Everything that is not the picture rides up into the bar. */
   .sleeve > *:not(.cover) {
-    transform: translateY(calc((-72vw - 18px) * var(--c, 0)));
+    transform: translateY(calc((-62vw - 16px) * var(--c, 0)));
   }
 
-  .sleeve h1 { font-size: clamp(21px, 5.6vw, 28px); margin-bottom: 5px; }
-  .sleeve .artist { font-size: 15px; }
-  .sleeve .album { margin-bottom: 14px; }
+  .sleeve h1 { font-size: clamp(21px, 5.8vw, 30px); margin-bottom: 3px; line-height: 1.1; }
+  .sleeve .artist { font-size: 14px; margin-bottom: 2px; }
+  .sleeve .album { margin-bottom: 12px; font-size: 11px; }
+  .sleeve .time { margin-top: 8px; }
+  .sleeve .transport { margin-top: 14px; gap: 16px; }
+  .sleeve .transport button { width: 40px; height: 40px; }
+  .sleeve .transport button.big { width: 56px; height: 56px; }
+  .up-next, .control-note { display: none; }
 
+  /* Enough room that the first note starts below the bar rather than under it. The old
+     value predated the transport row and was around ninety pixels short, which is what
+     put text behind the buttons. */
   .stream {
     height: 100dvh;
-    padding: calc(72vw + 196px) 20px 44vh;
+    padding: calc(62vw + 250px) 20px 44vh;
   }
-  .note { padding-bottom: 9vh; }
-  .note p { font-size: 19px; }
+  .note { padding-bottom: 8vh; }
+  .note p { font-size: 18px; line-height: 1.6; }
+  .note h3 { font-size: 19px; }
+  .headline { font-size: 20px; margin-bottom: 26px; }
+
+  /* The controls belong to the picture, and go with it. */
+  .controls { top: 14px; inset-inline-end: 14px; gap: 6px; }
+  .controls button { padding: 5px 9px; font-size: 11px; }
+  .stage[data-collapsed="1"] .controls {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .controls { transition: opacity 0.35s ease; }
 }
 
 @media (max-width: 560px) {
   .setup { padding: 60px 18px 80px; }
-  .controls { top: 14px; inset-inline-end: 16px; }
-  .from-history { top: 14px; inset-inline-start: 18px; }
-  .stream { padding-bottom: 40vh; }
 }
