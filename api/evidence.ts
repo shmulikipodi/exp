@@ -205,11 +205,21 @@ async function wikipedia(
   lang = "en",
 ): Promise<Evidence> {
   const api = wpApi(lang);
-  const term = encodeURIComponent(`${title} ${artist}`);
-  const search = await json(
-    `${api}?action=query&list=search&srsearch=${term}&srlimit=5&format=json&origin=*`,
-  );
-  const results = search?.query?.search ?? [];
+  const find = async (query: string) => {
+    const res = await json(
+      `${api}?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=5&format=json&origin=*`,
+    );
+    return res?.query?.search ?? [];
+  };
+
+  let results = await find(`${title} ${artist}`);
+  // Some editions rank a two-term query badly — ja.wikipedia answers "プラスチックラブ
+  // 竹内まりや" with five unrelated pages. The title alone finds it, and the title check
+  // below is what makes trying that safe.
+  if (!results.some((r: any) => sameSong(r?.title, title))) {
+    const byTitle = await find(title);
+    if (byTitle.length) results = [...byTitle, ...results];
+  }
 
   // The ISRC path exists so a same-titled song can't poison the credits. Taking search
   // result #1 on trust reopened that door on the other side: nine thousand characters
