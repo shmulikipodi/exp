@@ -2,21 +2,34 @@
 // against Wikipedia on the server. The model never writes a URL — it only says which
 // words are worth looking up.
 
-const LINK = /\[\[([^\]]{2,60})\]\]/g;
+const LINK = /\[\[(?:(artist|song):)?([^\]]{2,60})\]\]/g;
 
-export function Linked({ text, links }: { text: string; links?: Record<string, string> }) {
+type Part = string | { term: string; href: string; kind?: "artist" | "song" };
+
+export function Linked({
+  text,
+  links,
+  onPlay,
+  onOpenArtist,
+}: {
+  text: string;
+  links?: Record<string, string>;
+  onPlay?: (query: string) => void;
+  onOpenArtist?: (query: string) => void;
+}) {
   if (!text.includes("[[")) return <>{text}</>;
 
-  const parts: (string | { term: string; href: string })[] = [];
+  const parts: Part[] = [];
   let last = 0;
 
   for (const match of text.matchAll(LINK)) {
-    const term = match[1].trim();
+    const kind = match[1] as "artist" | "song" | undefined;
+    const term = match[2].trim();
     if (match.index! > last) parts.push(text.slice(last, match.index));
     const href =
       links?.[term] ??
       `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(term)}`;
-    parts.push({ term, href });
+    parts.push({ term, href, kind });
     last = match.index! + match[0].length;
   }
   if (last < text.length) parts.push(text.slice(last));
@@ -27,18 +40,45 @@ export function Linked({ text, links }: { text: string; links?: Record<string, s
         typeof part === "string" ? (
           part
         ) : (
-          <a
-            key={i}
-            className="entity"
-            href={part.href}
-            target="_blank"
-            rel="noreferrer"
-            // The note itself is a seek target; following a link should not also
-            // jump the track.
-            onClick={(e) => e.stopPropagation()}
-          >
-            {part.term}
-          </a>
+          <span key={i} className="entity-wrap">
+            <a
+              className="entity"
+              href={part.href}
+              target="_blank"
+              rel="noreferrer"
+              // The note itself is a seek target; following a link should not also
+              // jump the track.
+              onClick={(e) => e.stopPropagation()}
+            >
+              {part.term}
+            </a>
+            {/* The name reads about it; the button acts on it. Keeping them separate
+                means a click to read never starts music by accident. */}
+            {part.kind === "song" && onPlay && (
+              <button
+                className="act"
+                title={`Play ${part.term}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPlay(part.term);
+                }}
+              >
+                ▶
+              </button>
+            )}
+            {part.kind === "artist" && onOpenArtist && (
+              <button
+                className="act"
+                title={`Open ${part.term} on Spotify`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenArtist(part.term);
+                }}
+              >
+                ↗
+              </button>
+            )}
+          </span>
         ),
       )}
     </>

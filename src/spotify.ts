@@ -352,3 +352,38 @@ export async function transferTo(deviceId: string): Promise<ControlResult> {
     return "failed";
   }
 }
+
+/** Finds a track by name and plays it. The reader clicked a song; play the song. */
+export async function playSearch(query: string): Promise<ControlResult> {
+  try {
+    const token = await accessToken();
+    const found = await fetch(
+      `https://api.spotify.com/v1/search?type=track&limit=1&q=${encodeURIComponent(query)}`,
+      { headers: { authorization: `Bearer ${token}` } },
+    );
+    if (found.status === 401) {
+      logout();
+      return "needs-reconnect";
+    }
+    if (!found.ok) return "failed";
+
+    const uri = (await found.json())?.tracks?.items?.[0]?.uri;
+    if (!uri) return "failed";
+
+    const res = await fetch("https://api.spotify.com/v1/me/player/play", {
+      method: "PUT",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ uris: [uri] }),
+    });
+    if (res.ok || res.status === 204) return "ok";
+    if (res.status === 404) return "no-device";
+    if (res.status === 403) return "premium-required";
+    return "failed";
+  } catch {
+    return "failed";
+  }
+}
+
+/** Somewhere to send a reader who clicked an artist — their page, not a guess at a URI. */
+export const spotifySearchUrl = (query: string, type: "artist" | "track") =>
+  `https://open.spotify.com/search/${encodeURIComponent(query)}/${type}s`;

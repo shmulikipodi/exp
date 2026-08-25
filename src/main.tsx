@@ -20,6 +20,8 @@ import "@fontsource-variable/jetbrains-mono"
 import "@fontsource-variable/lora"
 import "@fontsource-variable/bricolage-grotesque"
 import "@fontsource-variable/heebo"
+import "@fontsource-variable/assistant"
+import "@fontsource-variable/rubik"
 import './index.css'
 import App from './App.tsx'
 

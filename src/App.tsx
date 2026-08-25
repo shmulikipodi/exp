@@ -5,6 +5,8 @@ import {
   recentlyPlayed,
   trackDetails,
   next as skipNext,
+  playSearch,
+  spotifySearchUrl,
   transferTo,
   pause,
   play,
@@ -909,6 +911,19 @@ export default function App() {
     if (before) setPlaying(before);
   }, [t]);
 
+  // A song named in a note is a song you can hear; an artist is a page you can open.
+  const playNamed = useCallback(
+    (query: string) => {
+      const who = (playing?.artists ?? []).join(" ");
+      run(() => playSearch(`${query} ${who}`.trim()));
+    },
+    [playing, run],
+  );
+
+  const openArtist = useCallback((query: string) => {
+    window.open(spotifySearchUrl(query, "artist"), "_blank", "noreferrer");
+  }, []);
+
   const playHere = useCallback(async () => {
     if (player.status !== "ready") return;
     await run(() => transferTo(player.deviceId));
@@ -1204,7 +1219,12 @@ export default function App() {
               <>
                 {activeNotes.headline && (
                   <p className="headline">
-                    <Linked text={activeNotes.headline} links={activeNotes.links} />
+                    <Linked
+                      text={activeNotes.headline}
+                      links={activeNotes.links}
+                      onPlay={playNamed}
+                      onOpenArtist={openArtist}
+                    />
                   </p>
                 )}
                 {activeNotes.thread && (
@@ -1253,7 +1273,12 @@ export default function App() {
                     )}
                     <h3>{n.title}</h3>
                     <p>
-                      <Linked text={n.body} links={activeNotes.links} />
+                      <Linked
+                        text={n.body}
+                        links={activeNotes.links}
+                        onPlay={playNamed}
+                        onOpenArtist={openArtist}
+                      />
                     </p>
 
                     <div className="note-actions">
@@ -1301,7 +1326,12 @@ export default function App() {
                         <div className="answer" key={a.id}>
                           <p className="q">{a.question}</p>
                           <p>
-                            <Linked text={a.body} links={activeNotes.links} />
+                            <Linked
+                            text={a.body}
+                            links={activeNotes.links}
+                            onPlay={playNamed}
+                            onOpenArtist={openArtist}
+                          />
                           </p>
                           {(a.sources ?? []).length > 0 && (
                             <p className="sources">
@@ -1324,7 +1354,12 @@ export default function App() {
                     <div className={`answer standalone${String(a.about).startsWith("topic:") ? " topic" : ""}`} key={a.id}>
                       <p className="q">{a.question}</p>
                       <p>
-                        <Linked text={a.body} links={activeNotes.links} />
+                        <Linked
+                            text={a.body}
+                            links={activeNotes.links}
+                            onPlay={playNamed}
+                            onOpenArtist={openArtist}
+                          />
                       </p>
                       {(a.sources ?? []).length > 0 && (
                         <p className="sources">

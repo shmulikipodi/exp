@@ -44,7 +44,26 @@
   --accent-dim: hsl(var(--h) 30% 46%);
 }
 /* Georgia and Iowan have no Hebrew, so RTL gets its own serif stack. */
-[dir="rtl"] { --serif: "Frank Ruehl CLM", "David Libre", "Times New Roman", serif; }
+/* None of the Latin faces carry Hebrew, so RTL needs its own pairing per set. One
+   shared pairing made the picker appear to do nothing in Hebrew — and the display face
+   was never overridden at all, so every set fell back to the same system font.
+   :root[dir=…][data-type=…] outranks :root[data-type=…] whatever the source order. */
+:root[dir="rtl"][data-type="a"] {
+  --display: "Frank Ruhl Libre Variable", Georgia, serif;
+  --serif: "Frank Ruhl Libre Variable", "David Libre", Georgia, serif;
+}
+:root[dir="rtl"][data-type="b"] {
+  --display: "Heebo Variable", Arial, sans-serif;
+  --serif: "Frank Ruhl Libre Variable", Georgia, serif;
+}
+:root[dir="rtl"][data-type="c"] {
+  --display: "Rubik Variable", Arial, sans-serif;
+  --serif: "Assistant Variable", Arial, sans-serif;
+}
+:root[dir="rtl"][data-type="d"] {
+  --display: "Assistant Variable", Arial, sans-serif;
+  --serif: "Heebo Variable", Arial, sans-serif;
+}
 
 .setup { position: relative; max-width: 680px; margin: 0 auto; padding: 88px 26px 120px; }
 
@@ -443,6 +462,23 @@ button.ghost:hover { color: var(--dim); background: none; }
   margin: 0 0 12px;
   letter-spacing: -0.018em;
 }
+.entity-wrap { white-space: normal; }
+
+.act {
+  margin-inline-start: 4px;
+  padding: 0 5px;
+  font-size: 10px;
+  line-height: 1.6;
+  vertical-align: 1px;
+  color: var(--accent);
+  background: none;
+  border: 1px solid var(--accent-dim);
+  border-radius: 4px;
+  opacity: 0.65;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.act:hover { opacity: 1; background: var(--accent); color: #14100a; border-color: var(--accent); }
+
 .entity {
   color: inherit;
   text-decoration: none;

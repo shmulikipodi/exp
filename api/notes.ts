@@ -38,6 +38,9 @@ You are NOT writing an encyclopedia entry. Hard rules:
 - Wrap anything a reader might want to look up in double square brackets: [[Eddie Hazel]],
   [[United Sound Systems]], [[Echoplex]], [[Westbound Records]], [[Muscle Shoals]].
   People, studios, instruments and equipment, labels, places, bands, songs and albums.
+  Two of those get a prefix, because the reader can act on them: a musician or band is
+  [[artist:Eddie Hazel]], and another song is [[song:Maggot Brain]]. Everything else
+  stays unprefixed. Do not prefix the song being written about or its own artist.
   Wrap the name only — "[[Eddie Hazel]]'s guitar", never "[[Eddie Hazel's guitar]]" — and
   write the name as it would be titled, not as a description. Do not wrap ordinary words,
   and do not put a link in the note's title.
@@ -186,49 +189,64 @@ export function toFraction(at: unknown, durationMs: number): number | null {
   return ms / durationMs;
 }
 
-const LINK = /\[\[([^\]]{2,60})\]\]/g;
+const LINK = /\[\[(?:(artist|song):)?([^\]]{2,60})\]\]/g;
 
 /**
  * Resolves the [[marked]] names to real Wikipedia articles in one request, rather than
  * letting the model write URLs — it will happily invent a plausible one. Anything with
  * no article falls back to a search, which cannot 404.
  */
-async function resolveLinks(texts: string[]): Promise<Record<string, string>> {
+async function resolveLinks(texts: string[], lang = "en"): Promise<Record<string, string>> {
   const terms = new Set<string>();
   for (const text of texts) {
-    for (const m of String(text ?? "").matchAll(LINK)) terms.add(m[1].trim());
+    for (const m of String(text ?? "").matchAll(LINK)) terms.add(m[2].trim());
   }
   if (terms.size === 0) return {};
 
   const wanted = [...terms].slice(0, 40);
   const search = (t: string) =>
-    `https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(t)}`;
+    `https://${lang}.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(t)}`;
   const links: Record<string, string> = Object.fromEntries(wanted.map((t) => [t, search(t)]));
 
-  try {
-    const url =
-      `https://en.wikipedia.org/w/api.php?action=query&redirects=1&format=json&origin=*&titles=` +
-      encodeURIComponent(wanted.join("|"));
-    const res = await fetch(url, { headers: { "user-agent": "exp/1.0 ( https://github.com/ )" } });
-    if (!res.ok) return links;
-    const data: any = await res.json();
+  /** Resolves as many of `names` as one edition has articles for. */
+  const resolveIn = async (edition: string, names: string[]): Promise<string[]> => {
+    const missed: string[] = [];
+    try {
+      const url =
+        `https://${edition}.wikipedia.org/w/api.php?action=query&redirects=1&format=json&origin=*&titles=` +
+        encodeURIComponent(names.join("|"));
+      const res = await fetch(url, { headers: { "user-agent": "exp/1.0 ( https://github.com/ )" } });
+      if (!res.ok) return names;
+      const data: any = await res.json();
 
-    // Wikipedia normalises and redirects on the way; both have to be followed back to
-    // the term the model actually wrote.
-    const trace = new Map<string, string>();
-    for (const n of data?.query?.normalized ?? []) trace.set(n.to, n.from);
-    for (const r of data?.query?.redirects ?? []) trace.set(r.to, trace.get(r.from) ?? r.from);
+      // Wikipedia normalises and redirects on the way; both have to be followed back to
+      // the term the model actually wrote.
+      const trace = new Map<string, string>();
+      for (const n of data?.query?.normalized ?? []) trace.set(n.to, n.from);
+      for (const r of data?.query?.redirects ?? []) trace.set(r.to, trace.get(r.from) ?? r.from);
 
-    for (const page of Object.values<any>(data?.query?.pages ?? {})) {
-      if (page.missing !== undefined || !page.title) continue;
-      const original = trace.get(page.title) ?? page.title;
-      links[original] = `https://en.wikipedia.org/wiki/${encodeURIComponent(
-        page.title.replace(/ /g, "_"),
-      )}`;
+      for (const page of Object.values<any>(data?.query?.pages ?? {})) {
+        const original = trace.get(page.title) ?? page.title;
+        if (page.missing !== undefined || !page.title) {
+          if (original) missed.push(original);
+          continue;
+        }
+        links[original] = `https://${edition}.wikipedia.org/wiki/${encodeURIComponent(
+          page.title.replace(/ /g, "_"),
+        )}`;
+      }
+    } catch {
+      return names;
     }
-  } catch {
-    // Search links are already in place; a failure here costs nothing.
-  }
+    return missed;
+  };
+
+  // The reader's own Wikipedia first — a Hebrew note pointing at an English article is
+  // a dead end for the person reading it. Anything it has no article for falls back to
+  // English, which usually does.
+  const missing = await resolveIn(lang, wanted);
+  if (lang !== "en" && missing.length) await resolveIn("en", missing);
+
   return links;
 }
 
@@ -620,7 +638,7 @@ export default async function handler(req: any, res: any) {
         at,
         atBasis: at === null ? null : n.atBasis === "documented" ? "documented" : "estimated",
         title: String(n.title ?? "")
-          .replace(LINK, "$1")
+          .replace(LINK, "$2")
           .trim(),
         body: String(n.body).trim(),
         };
@@ -648,7 +666,10 @@ export default async function handler(req: any, res: any) {
     }
 
     const headline = typeof parsed.headline === "string" ? parsed.headline.trim() : "";
-    const links = await resolveLinks([headline, ...notes.map((n: any) => n.body)]);
+    const links = await resolveLinks(
+      [headline, ...notes.map((n: any) => n.body)],
+      hebrew ? "he" : "en",
+    );
 
     res.end(
       JSON.stringify({
@@ -657,7 +678,7 @@ export default async function handler(req: any, res: any) {
         links,
         thread:
           typeof parsed.thread === "string" && parsed.thread.trim()
-            ? parsed.thread.replace(LINK, "$1").trim()
+            ? parsed.thread.replace(LINK, "$2").trim()
             : null,
         confidence: parsed.confidence === "low" ? "low" : "high",
         sources: [...evidence.sources, ...grounded.urls].slice(0, 8),
