@@ -6,35 +6,47 @@
   --display: "Fraunces Variable", Georgia, serif;
   --serif: "Newsreader Variable", Georgia, serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  /* Weight is part of the pairing, not an afterthought: the headline carries real mass
+     and the reading text sits well below it. Everything was at 600 before, which is why
+     the sets differed in shape but never in voice. */
+  --display-weight: 800;
+  --body-weight: 390;
 }
 
-/* A — the current one. High-contrast display serif, warm reading serif. */
+/* A — heavy high-contrast serif over a light one. The most "record sleeve" of the four. */
 :root[data-type="a"] {
   --display: "Fraunces Variable", Georgia, serif;
   --serif: "Newsreader Variable", Georgia, serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --display-weight: 900;
+  --body-weight: 380;
 }
 
-/* B — magazine. Playfair's thin strokes against a serif built for long text. */
+/* B — magazine. Playfair at its heaviest is dramatic rather than merely large. */
 :root[data-type="b"] {
   --display: "Playfair Display Variable", Georgia, serif;
   --serif: "Source Serif 4 Variable", Georgia, serif;
   --mono: "JetBrains Mono Variable", ui-monospace, Menlo, monospace;
+  --display-weight: 900;
+  --body-weight: 380;
 }
 
-/* C — the sleeve. Instrument Serif is a display face with real personality; Literata
-   was drawn for reading on screens for a long time without tiring. */
+/* C — the fattest. A heavy grotesque headline against a serif drawn for long reading. */
 :root[data-type="c"] {
-  --display: "Instrument Serif", Georgia, serif;
+  --display: "Archivo Variable", system-ui, sans-serif;
   --serif: "Literata Variable", Georgia, serif;
   --mono: "JetBrains Mono Variable", ui-monospace, Menlo, monospace;
+  --display-weight: 800;
+  --body-weight: 350;
 }
 
-/* D — softer. A grotesque that headlines without shouting, over a bookish serif. */
+/* D — softer, still heavy. Bricolage has width as well as weight. */
 :root[data-type="d"] {
   --display: "Bricolage Grotesque Variable", system-ui, sans-serif;
   --serif: "Lora Variable", Georgia, serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --display-weight: 800;
+  --body-weight: 400;
 }
 
 :root {
@@ -51,18 +63,26 @@
 :root[dir="rtl"][data-type="a"] {
   --display: "Frank Ruhl Libre Variable", Georgia, serif;
   --serif: "Frank Ruhl Libre Variable", "David Libre", Georgia, serif;
+  --display-weight: 800;
+  --body-weight: 400;
 }
 :root[dir="rtl"][data-type="b"] {
   --display: "Heebo Variable", Arial, sans-serif;
   --serif: "Frank Ruhl Libre Variable", Georgia, serif;
+  --display-weight: 900;
+  --body-weight: 400;
 }
 :root[dir="rtl"][data-type="c"] {
   --display: "Rubik Variable", Arial, sans-serif;
   --serif: "Assistant Variable", Arial, sans-serif;
+  --display-weight: 800;
+  --body-weight: 350;
 }
 :root[dir="rtl"][data-type="d"] {
   --display: "Assistant Variable", Arial, sans-serif;
   --serif: "Heebo Variable", Arial, sans-serif;
+  --display-weight: 800;
+  --body-weight: 350;
 }
 
 .setup { position: relative; max-width: 680px; margin: 0 auto; padding: 88px 26px 120px; }
@@ -99,7 +119,8 @@
 /* ---------- setup / connect ---------- */
 
 .setup h1 {
-  font: 600 44px/1 var(--display);
+  font: 44px/1 var(--display);
+  font-weight: var(--display-weight);
   letter-spacing: -0.04em;
   margin: 0 0 10px;
 }
@@ -186,7 +207,7 @@ button.ghost:hover { color: var(--dim); background: none; }
 .sleeve h1 {
   font-family: var(--display);
   font-optical-sizing: auto;
-  font-weight: 600;
+  font-weight: var(--display-weight);
   font-size: clamp(28px, 3.1vw, 47px);
   line-height: 1.04;
   letter-spacing: -0.026em;
@@ -394,7 +415,8 @@ button.ghost:hover { color: var(--dim); background: none; }
 .stream::-webkit-scrollbar { display: none; }
 
 .headline {
-  font: italic 400 clamp(21px, 1.95vw, 31px)/1.4 var(--serif);
+  font: italic clamp(21px, 1.95vw, 31px)/1.4 var(--serif);
+  font-weight: var(--body-weight);
   margin: 0 0 34px;
   color: var(--ink);
   text-wrap: pretty;
@@ -456,7 +478,7 @@ button.ghost:hover { color: var(--dim); background: none; }
 .note h3 {
   font-family: var(--display);
   font-optical-sizing: auto;
-  font-weight: 600;
+  font-weight: calc(var(--display-weight) - 100);
   font-size: clamp(19px, 1.5vw, 24px);
   line-height: 1.25;
   margin: 0 0 12px;
@@ -489,7 +511,8 @@ button.ghost:hover { color: var(--dim); background: none; }
 
 .note p {
   margin: 0;
-  font: 400 clamp(18px, 1.45vw, 24px)/1.55 var(--serif);
+  font: clamp(18px, 1.45vw, 24px)/1.55 var(--serif);
+  font-weight: var(--body-weight);
   color: #ded6cb;
   text-wrap: pretty;
 }
@@ -573,7 +596,7 @@ button.ghost:hover { color: var(--dim); background: none; }
   letter-spacing: 0.03em;
   color: var(--accent);
 }
-.answer p { font: 15px/1.6 var(--serif); color: #d3cbc0; margin: 0; }
+.answer p { font: 15px/1.6 var(--serif); font-weight: var(--body-weight); color: #d3cbc0; margin: 0; }
 .answer .sources { margin-top: 12px; margin-bottom: 0; }
 
 .conversation {
@@ -628,7 +651,7 @@ footer { max-width: 30em; margin-top: 48px; padding-top: 24px; border-top: 1px s
 .loading { font: 13px var(--mono); color: var(--faint); animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 
-.idle h2 { font-family: var(--display); font-size: 25px; margin: 0 0 8px; font-weight: 600; }
+.idle h2 { font-family: var(--display); font-size: 25px; margin: 0 0 8px; font-weight: var(--display-weight); }
 .idle p { color: var(--faint); margin: 0; }
 
 .warn { font-size: 12px; line-height: 1.5; color: #d9a05b; margin: 0 0 12px; }
@@ -679,7 +702,7 @@ footer { max-width: 30em; margin-top: 48px; padding-top: 24px; border-top: 1px s
   padding: 26px;
   box-shadow: 0 30px 80px rgba(0,0,0,0.7);
 }
-.panel h2 { margin: 0 0 10px; font-family: var(--display); font-weight: 600; font-size: 21px; letter-spacing: -0.02em; }
+.panel h2 { margin: 0 0 10px; font-family: var(--display); font-weight: var(--display-weight); font-size: 21px; letter-spacing: -0.02em; }
 .panel .help { margin: 0 0 20px; font-size: 13px; line-height: 1.6; color: var(--dim); }
 .panel input { width: 100%; flex: none; margin-bottom: 9px; }
 .panel .row { margin-top: 18px; }

@@ -22,6 +22,7 @@ import "@fontsource-variable/bricolage-grotesque"
 import "@fontsource-variable/heebo"
 import "@fontsource-variable/assistant"
 import "@fontsource-variable/rubik"
+import "@fontsource-variable/archivo"
 import './index.css'
 import App from './App.tsx'
 
