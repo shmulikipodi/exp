@@ -29,6 +29,7 @@ import { onPlayer, startPlayer, type PlayerState } from "./player";
 import { History } from "./History";
 import { Linked } from "./Linked";
 import { Lyrics } from "./Lyrics";
+import { LyricsRail } from "./LyricsRail";
 import {
   type Entry,
   forget,
@@ -1457,6 +1458,15 @@ export default function App() {
 
             {error && <p className="error">{shownError}</p>}
           </section>
+
+          <LyricsRail
+            t={t}
+            title={track.title}
+            artist={track.artists[0] ?? ""}
+            album={track.album}
+            durationMs={track.durationMs}
+            progressMs={progress}
+          />
         </>
       )}
     </main>
