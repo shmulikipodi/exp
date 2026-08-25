@@ -73,3 +73,106 @@ export async function findEpisode(track: string, artist: string): Promise<Episod
   if (cache.size > 80) cache.delete(cache.keys().next().value as string);
   return found;
 }
+
+/* ---------- the wider podcast world ---------- */
+
+// Apple's directory is searchable without a key, and there is a whole genre of shows
+// taking songs apart. It is also full of cover-song channels, chat shows and
+// AI-generated filler, and a search for "Karma Police Radiohead" returns all of it —
+// so only shows known for doing the work are read.
+//
+// Judged on: first-hand accounts (the musician talking), documented research, or
+// musical analysis. Dramatised true-crime music shows are deliberately absent; they
+// are entertaining and they invent.
+const TRUSTED = [
+  "song exploder",
+  "switched on pop",
+  "dissect",
+  "strong songs",
+  "sodajerker",
+  "tape notes",
+  "broken record",
+  "cocaine & rhinestones",
+  "cocaine and rhinestones",
+  "a history of rock music in 500 songs",
+  "hit parade",
+  "the opus",
+  "shred with shifty",
+  "twenty thousand hertz",
+  "bandsplain",
+  "questlove supreme",
+  "lost notes",
+  "rolling stone music now",
+  "all songs considered",
+  "sound opinions",
+];
+
+const ITUNES = "https://itunes.apple.com/search";
+
+export type Mention = { show: string; title: string; link: string; summary: string };
+
+const mentionCache = new Map<string, { at: number; value: Mention[] }>();
+
+function trusted(show: string): boolean {
+  const s = show.toLowerCase();
+  return TRUSTED.some((name) => s.includes(name));
+}
+
+/** Does this episode actually concern the track, or merely mention the artist? */
+function aboutTrack(text: string, track: string, artist: string): boolean {
+  const hay = text.toLowerCase();
+  const words = (v: string) =>
+    v
+      .toLowerCase()
+      .replace(/\([^)]*\)|\[[^\]]*\]/g, "")
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter((w) => w.length > 2);
+
+  const title = words(track);
+  const who = words(artist);
+  const hasArtist = who.length === 0 || who.some((w) => hay.includes(w));
+  const hasTitle = title.length === 0 || title.every((w) => hay.includes(w));
+  return hasArtist && hasTitle;
+}
+
+export async function findMentions(track: string, artist: string): Promise<Mention[]> {
+  const key = `${artist}|${track}`.toLowerCase();
+  const hit = mentionCache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
+
+  let out: Mention[] = [];
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    const url =
+      `${ITUNES}?media=podcast&entity=podcastEpisode&limit=25&term=` +
+      encodeURIComponent(`${track} ${artist}`);
+    const res = await fetch(url, { headers: { "user-agent": UA }, signal: controller.signal });
+    clearTimeout(timer);
+
+    if (res.ok) {
+      const data = (await res.json()) as any;
+      for (const e of data?.results ?? []) {
+        const show = String(e?.collectionName ?? "");
+        const title = String(e?.trackName ?? "");
+        const summary = strip(String(e?.description ?? ""));
+        if (!trusted(show) || !title) continue;
+        if (!aboutTrack(`${title} ${summary}`, track, artist)) continue;
+
+        out.push({
+          show,
+          title,
+          link: String(e?.trackViewUrl ?? e?.collectionViewUrl ?? ""),
+          summary: summary.slice(0, 1200),
+        });
+        if (out.length === 2) break;
+      }
+    }
+  } catch {
+    // A bonus, never a blocker.
+  }
+
+  mentionCache.set(key, { at: Date.now(), value: out });
+  if (mentionCache.size > 80) mentionCache.delete(mentionCache.keys().next().value as string);
+  return out;
+}

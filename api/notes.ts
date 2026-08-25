@@ -4,7 +4,7 @@ import { ground, lastFallbackReason } from "./providers.js";
 import { gather, gatherAlbum, gatherArtist } from "./evidence.js";
 import { keyPool, poolStatus } from "./keys.js";
 import { fetchLyrics } from "./lyrics.js";
-import { findEpisode } from "./podcast.js";
+import { findEpisode, findMentions } from "./podcast.js";
 
 const MODEL = "gemini-3.6-flash";
 
@@ -444,9 +444,10 @@ export default async function handler(req: any, res: any) {
     // model's estimate, which is the difference between a dot you can trust and a dot
     // you sit waiting at.
     // Both are optional extras and neither blocks the other.
-    const [lyrics, episode] = await Promise.all([
+    const [lyrics, episode, mentions] = await Promise.all([
       fetchLyrics(title, artists[0], body.album ?? "", body.durationMs ?? 0),
       findEpisode(title, artists[0]).catch(() => null),
+      findMentions(title, artists[0]).catch(() => []),
     ]);
     const podcastBlock = episode
       ? `THE ARTIST ON THIS SONG\nSong Exploder made an episode about this exact track: ` +
@@ -454,6 +455,15 @@ export default async function handler(req: any, res: any) {
         `anything here is first-hand — better than a catalogue on intent and process, ` +
         `though people misremember their own sessions. Say when something comes from it.\n` +
         `${episode.summary}\n\nEND\n\n`
+      : "";
+
+    const mentionBlock = mentions.length
+      ? `SHOWS THAT COVERED THIS TRACK\nThese are episode summaries, not transcripts — a ` +
+        `description of what was discussed rather than what was said. Treat them as a ` +
+        `pointer to what is known about the recording, name the show when you use one, ` +
+        `and do not put words in anyone's mouth on this basis alone.\n` +
+        mentions.map((m) => `- ${m.show}: "${m.title}"\n  ${m.summary}`).join("\n") +
+        `\n\nEND\n\n`
       : "";
 
     const lyricBlock = lyrics.found
@@ -500,7 +510,7 @@ export default async function handler(req: any, res: any) {
         (albumEv.text ? `EVIDENCE ABOUT THE ALBUM\n${albumEv.text}\n\nEND\n\n` : "");
 
       const asked =
-        `${facts}\n\n${wide}${podcastBlock}${lyricBlock}` +
+        `${facts}\n\n${wide}${podcastBlock}${mentionBlock}${lyricBlock}` +
         (body.about
           ? `The reader is asking about this note:\n"${body.about.title}" — ${body.about.body}\n\n`
           : "") +
@@ -563,6 +573,7 @@ export default async function handler(req: any, res: any) {
         : "No listening history yet this session — set thread to null.\n\n") +
       evidenceBlock +
       podcastBlock +
+      mentionBlock +
       lyricBlock +
       wideBlock +
       (rejected.length
@@ -623,6 +634,10 @@ export default async function handler(req: any, res: any) {
       for (let i = 2; seen.has(title); i++) title = `${n.title} (${i})`;
       n.title = title;
       seen.add(title);
+    }
+
+    for (const m of mentions) {
+      if (m.link) evidence.sources = [...evidence.sources, [m.link, `${m.show} — ${m.title}`]];
     }
 
     if (episode) {
