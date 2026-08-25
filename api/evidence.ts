@@ -17,42 +17,99 @@ const UA = "exp/1.0 ( https://github.com/ )";
 const SIGNALS =
   /\b(sued|suing|lawsuit|court|jury|verdict|settle\w*|plagiar\w*|stole|stolen|credit\w*|royalt\w*|banned|ban\b|censor\w*|controvers\w*|accus\w*|alleg\w*|denied|denies|rumou?r\w*|myth|legend|hoax|backward\w*|backmask\w*|subliminal|satan\w*|occult|protest\w*|boycott\w*|refus\w*|walked out|quit|fired|sacked|feud|argu\w*|fight|punch\w*|died|death|overdose|suicide|funeral|tribute|arrest\w*|drug\w*|affair|divorce|breakup|split|reunit\w*|apolog\w*|withdraw\w*|pulled|scrap\w*|almost|nearly|rejected|turned down|threat\w*|sample\w*|interpolat\w*|cover version|misheard|mistake|accident\w*|improvis\w*|first take|one take)\b/i;
 
-function highlights(text: string, budget: number): string {
+/**
+ * Sections an encyclopedia article keeps the good part in. "In popular culture" is a
+ * list of every film, advert, riot and football chant a song ended up in; "Legacy" is
+ * why anyone still plays it; "Cover versions" is who else thought it was worth
+ * recording. Ranking paragraphs by keyword found some of this by accident. Naming the
+ * sections finds all of it on purpose.
+ */
+const LIFE =
+  /(legacy|popular culture|cultural|cover|parod|sampl|interpolat|controvers|scandal|lawsuit|litigation|court|banned|censor|in media|in film|film and television|television|advertis|impact|influence|aftermath|tribute|protest|reaction|meaning|interpretation)/i;
+
+/** How it was made. Worth keeping, but never at the expense of the above. */
+const MAKING = /(writing|composition|background|origin|lyric|analysis|theme|version|rendition|recording)/i;
+
+const PRIZED = new RegExp(`${LIFE.source}|${MAKING.source}`, "i")
+
+type Section = { heading: string; body: string };
+
+/** Plain-text Wikipedia extracts mark their headings with == equals signs ==. */
+function sections(text: string): Section[] {
+  const out: Section[] = [];
+  let heading = "";
+  let buffer: string[] = [];
+  const flush = () => {
+    const body = buffer.join("\n").trim();
+    if (body) out.push({ heading, body });
+    buffer = [];
+  };
+  for (const line of text.split(/\n/)) {
+    const m = line.match(/^\s*=+\s*(.+?)\s*=+\s*$/);
+    if (m) {
+      flush();
+      heading = m[1];
+    } else {
+      buffer.push(line);
+    }
+  }
+  flush();
+  return out;
+}
+
+export function highlights(text: string, budget: number): string {
   if (text.length <= budget) return text;
 
-  const paragraphs = text.split(/\n+/).filter((p) => p.trim().length > 40);
-  if (paragraphs.length === 0) return text.slice(0, budget);
+  const parts = sections(text);
+  const kept: string[] = [];
+  const taken = new Set<string>();
+  let used = 0;
+
+  const take = (chunk: string, label = "") => {
+    if (used >= budget || taken.has(chunk)) return;
+    taken.add(chunk);
+    kept.push(label ? `== ${label} ==\n${chunk}` : chunk);
+    used += chunk.length + label.length;
+  };
 
   // The opening establishes what the song is; it always stays.
-  const kept: string[] = [];
-  let used = 0;
-  for (const p of paragraphs.slice(0, 3)) {
-    kept.push(p);
-    used += p.length;
+  const intro = parts.find((p) => !p.heading)?.body ?? text;
+  intro
+    .split(/\n+/)
+    .filter((p) => p.trim().length > 40)
+    .slice(0, 3)
+    .forEach((p) => take(p));
+
+  // Then the sections named above — but the song's life before the song's making. In
+  // document order, "Writing and recording" and "Lyrics and interpretation" spent the
+  // entire budget on a long article and "Legacy" and "Covers and parodies" never
+  // arrived, which is the exact failure this whole function exists to prevent.
+  for (const part of parts) {
+    if (!LIFE.test(part.heading.trim())) continue;
+    take(part.body.slice(0, 2200), part.heading);
+  }
+  for (const part of parts) {
+    if (LIFE.test(part.heading.trim()) || !MAKING.test(part.heading.trim())) continue;
+    take(part.body.slice(0, 1600), part.heading);
   }
 
-  // Then whatever carries a story — richest first, not first-come. Taking them in
+  // Then whatever else carries a story — richest first, not first-come. Taking them in
   // document order let one long lawsuit section spend the whole budget before the
   // article ever got to the myth people actually remember.
-  const scored = paragraphs
-    .slice(3)
+  const rest = parts
+    .filter((p) => !PRIZED.test(p.heading.trim()))
+    .flatMap((p) => p.body.split(/\n+/))
+    .filter((p) => p.trim().length > 40 && !taken.has(p));
+
+  const scored = rest
     .map((p) => ({ p, score: (p.match(new RegExp(SIGNALS.source, "gi")) ?? []).length }))
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score);
 
-  for (const { p } of scored) {
-    if (used >= budget) break;
-    kept.push(p);
-    used += p.length;
-  }
+  for (const { p } of scored) take(p);
 
   // Still room? Fill in with the rest rather than leaving the budget unspent.
-  for (const p of paragraphs.slice(3)) {
-    if (used >= budget) break;
-    if (kept.includes(p)) continue;
-    kept.push(p);
-    used += p.length;
-  }
+  for (const p of rest) take(p);
 
   return kept.join("\n\n").slice(0, budget);
 }
@@ -152,6 +209,35 @@ function lineage(relations: any[]): string[] {
   return [...new Set(out)];
 }
 
+/**
+ * Every other artist who recorded this song, from the work all its recordings share.
+ * MusicBrainz lists each take separately, so the same singer arrives ten times over —
+ * one line per artist, and the original performer left out.
+ */
+function otherRecordings(relations: any[], performer: string, title: string): string[] {
+  const byArtist = new Map<string, { line: string; straight: boolean }>();
+  const mine = performer.toLowerCase();
+  for (const r of relations ?? []) {
+    const rec = r?.recording;
+    if (!rec?.title) continue;
+    const who = rec["artist-credit"]?.[0]?.name;
+    if (!who || who.toLowerCase() === mine) continue;
+    const key = who.toLowerCase();
+    // A popular song collects hundreds of these, most of them live medleys and
+    // eight-second teases. A recording whose title IS the song is someone covering it.
+    const straight = sameSong(rec.title, title);
+    const line = `${who} — "${rec.title}"`;
+    const seen = byArtist.get(key);
+    if (!seen || (straight && !seen.straight) || (straight === seen.straight && line.length < seen.line.length)) {
+      byArtist.set(key, { line, straight });
+    }
+  }
+  return [...byArtist.values()]
+    .sort((a, b) => Number(b.straight) - Number(a.straight))
+    .slice(0, 20)
+    .map((x) => x.line);
+}
+
 /** Relations on a recording or work, flattened to "role: person" lines. */
 function credits(relations: any[]): string[] {
   const out: string[] = [];
@@ -205,14 +291,19 @@ async function describeRecording(
 ): Promise<Evidence> {
   const lines = credits(rec.relations);
 
-  // Composers and lyricists hang off the underlying work, not the recording — but that
-  // is a third round-trip with a wait in front of it, so it is only worth making when
-  // the recording itself named nobody.
+  // Composers, lyricists and — the reason this round-trip is now always worth making —
+  // every other recording of the same song. Who else thought it was worth cutting, and
+  // who got there first, is a question a catalogue can answer and an encyclopedia
+  // usually can't.
   const workId = (rec.relations ?? []).find((r: any) => r["target-type"] === "work")?.work?.id;
-  if (workId && lines.length === 0) {
+  let others: string[] = [];
+  if (workId) {
     await sleep(600);
-    const work = await json(`${MB}/work/${workId}?inc=artist-rels&fmt=json`);
-    lines.push(...credits(work?.relations));
+    const work = await json(
+      `${MB}/work/${workId}?inc=artist-rels+recording-rels+artist-credits&fmt=json`,
+    );
+    if (lines.length === 0) lines.push(...credits(work?.relations));
+    others = otherRecordings(work?.relations, rec["artist-credit"]?.[0]?.name ?? artist, rec.title);
   }
 
   const releases = (rec.releases ?? [])
@@ -242,6 +333,13 @@ async function describeRecording(
     label ? `Label: ${label}` : "",
     lines.length ? `Credits:\n${[...new Set(lines)].map((l) => `  - ${l}`).join("\n")}` : "",
     links.length ? `Related recordings:\n${links.join("\n")}` : "",
+    others.length
+      ? `Other artists who recorded this song (MusicBrainz, ${others.length} of them):\n` +
+        others.map((o) => `  - ${o}`).join("\n") +
+        `\nA cover worth a note is one that changed the song's life — outsold the original, ` +
+        `is what most people now think of as the song, or came from somewhere nobody expected. ` +
+        `A list of names is not a note.`
+      : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -306,6 +404,78 @@ async function wikipedia(
   };
 }
 
+/* ---------- what the song is doing out in the world right now ---------- */
+
+// GDELT indexes the world's news and answers without a key. An encyclopedia tells you
+// a song was used in a film in 1994; this tells you it was in a trailer last month, or
+// sued last week, or sung at a funeral that made the papers. Headlines only, which is
+// enough to know that something happened and worth one note when it did.
+const GDELT = "https://api.gdeltproject.org/api/v2/doc/doc";
+
+async function fetchNews(title: string, artist: string): Promise<Evidence> {
+  const query = `"${title}" ${artist}`;
+  const url =
+    `${GDELT}?query=${encodeURIComponent(query)}&mode=artlist&maxrecords=25` +
+    `&timespan=12m&sort=hybridrel&format=json`;
+
+  const data = await json(url, 20000, 1);
+  const articles: any[] = data?.articles ?? [];
+  if (articles.length === 0) return { text: "", sources: [] };
+
+  const want = title.toLowerCase();
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  for (const a of articles) {
+    const headline = String(a?.title ?? "").trim();
+    const domain = String(a?.domain ?? "");
+    // The query is loose enough to return anything mentioning the band. A headline
+    // that doesn't name the song is about the band, and that is a different note.
+    if (!headline || !headline.toLowerCase().includes(want)) continue;
+    if (seen.has(headline)) continue;
+    seen.add(headline);
+    const when = String(a?.seendate ?? "").slice(0, 8);
+    const date = when.length === 8 ? `${when.slice(0, 4)}-${when.slice(4, 6)}` : "";
+    lines.push(`  - ${date ? `[${date}] ` : ""}${headline}${domain ? ` (${domain})` : ""}`);
+    if (lines.length === 10) break;
+  }
+  if (lines.length === 0) return { text: "", sources: [] };
+
+  return {
+    text:
+      `News in the last year that names this song (GDELT, headlines only):\n` +
+      lines.join("\n") +
+      `\nHeadlines are not facts. Use one only if it points at something you can state ` +
+      `plainly — a sync, a lawsuit, a death, an anniversary, a cover that charted. Never ` +
+      `write a note whose whole content is that a newspaper mentioned the song.`,
+    sources: [],
+  };
+}
+
+// GDELT takes about seventeen seconds to answer, which is twice the whole evidence
+// budget. So it is never waited for: asking starts the fetch and returns whatever
+// arrived from an earlier ask. The first play of a track gets no headlines; the second
+// look at it — more notes, a question, hearing it again — gets them.
+const newsCache = new Map<string, { at: number; value: Evidence }>();
+const newsPending = new Set<string>();
+const NEWS_TTL_MS = 6 * 60 * 60_000;
+
+function news(title: string, artist: string): Evidence {
+  const key = `${title}|${artist}`.toLowerCase();
+  const hit = newsCache.get(key);
+  if (hit && Date.now() - hit.at < NEWS_TTL_MS) return hit.value;
+
+  if (!newsPending.has(key)) {
+    newsPending.add(key);
+    const remember = (value: Evidence) => {
+      newsCache.set(key, { at: Date.now(), value });
+      newsPending.delete(key);
+      if (newsCache.size > 60) newsCache.delete(newsCache.keys().next().value as string);
+    };
+    fetchNews(title, artist).then(remember, () => remember({ text: "", sources: [] }));
+  }
+  return { text: "", sources: [] };
+}
+
 /** Both sources, in parallel, never throwing. Empty text means we found nothing. */
 // 3. Every question and every "more notes" for the same track was re-running the whole
 // gather — four MusicBrainz round-trips with 1.1s of deliberate spacing between them,
@@ -339,7 +509,7 @@ export async function gather(
   const empty = { text: "", sources: [] as [string, string][] };
   // Each source gets its own clock. Racing them as a group meant one slow catalogue
   // lookup threw away an encyclopedia article that had already arrived.
-  const [mb, band, ...articles] = await Promise.all([
+  const [mb, band, press, ...articles] = await Promise.all([
     withBudget(musicbrainz(title, artist, isrc, durationMs).catch(() => empty), empty),
     // A small, story-filtered slice of the band's own article. What happened to the
     // people who made a record is often the most remarkable thing about it, and a song
@@ -347,6 +517,9 @@ export async function gather(
     // one of Eddie Van Halen's guitars, and no amount of reading about "Floods" finds
     // that out.
     withBudget(bandStory(artist, wikis[0]).catch(() => empty), empty),
+    // What the song has been doing lately, which no encyclopedia is fast enough to know.
+    // Never waited for; see news() for why.
+    news(title, artist),
     // Every language edition worth asking, at once.
     ...wikis.map((lang) =>
       withBudget(wikipedia(title, artist, album, lang).catch(() => empty), empty),
@@ -368,7 +541,11 @@ export async function gather(
   });
 
   const value: Evidence = {
-    text: [mb.text, ...kept.map((a) => a.text), band.text].filter(Boolean).join("\n\n---\n\n"),
+    // press has no sources of its own — headlines are a pointer, not a citation — so it
+    // is joined in by hand rather than going through the de-duplicating filter above.
+    text: [mb.text, ...kept.map((a) => a.text), band.text, press.text]
+      .filter(Boolean)
+      .join("\n\n---\n\n"),
     sources: [...mb.sources, ...kept.flatMap((a) => a.sources), ...band.sources],
   };
 

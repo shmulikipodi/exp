@@ -105,6 +105,22 @@ const TRUSTED = [
   "rolling stone music now",
   "all songs considered",
   "sound opinions",
+  // One song per episode, or one artist taken apart properly.
+  "one song",
+  "60 songs that explain the",
+  "heat rocks",
+  "and the writer is",
+  "pop pantheon",
+  "no dogs in space",
+  "the number ones",
+  "classic album sundays",
+  "louder than a riot",
+  "popcast",
+  "song vs. song",
+  "the rock n roll archaeology",
+  "in the studio with redbeard",
+  "vinyl emergency",
+  "album mode",
 ];
 
 const ITUNES = "https://itunes.apple.com/search";
