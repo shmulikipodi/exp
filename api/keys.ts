@@ -26,7 +26,9 @@ export function keyPool(prefix = "GEMINI", extra: string[] = []): string[] {
   if (bulk) keys.push(...bulk.split(",").map((k) => k.trim()).filter(Boolean));
   const solo = process.env[`${prefix}_API_KEY`];
   if (solo) keys.push(solo.trim());
-  for (let i = 2; i <= 9; i++) {
+  // From 1, not 2. Numbering a first key _1 is the obvious thing to do, and the pool
+  // used to read straight past it — three Groq keys arrived and only two were seen.
+  for (let i = 1; i <= 9; i++) {
     const k = process.env[`${prefix}_API_KEY_${i}`];
     if (k) keys.push(k.trim());
   }

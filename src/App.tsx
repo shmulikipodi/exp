@@ -178,6 +178,8 @@ export default function App() {
   const cache = useRef(new Map<string, Notes>());
   const streamRef = useRef<HTMLElement | null>(null);
   const viewingRef = useRef<string>("");
+  const pullRef = useRef<(() => Promise<void>) | null>(null);
+  const queuedRef = useRef<Awaited<ReturnType<typeof queueNext>>>(null);
   const lastManual = useRef(0);
 
   const t = STRINGS[lang];
@@ -228,26 +230,33 @@ export default function App() {
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
 
-    const loop = async () => {
+    const pull = async () => {
       if (!alive) return;
 
       if (DEMO) {
         setPlaying((prev) => prev ?? DEMO_TRACK);
-      } else {
-        try {
-          const p = await nowPlaying();
-          if (!alive) return;
-          setPlaying(p);
-          setProgress(p?.progressMs ?? 0);
-          setError("");
-        } catch (e) {
-          if (!alive) return;
-          const msg = (e as Error).message;
-          setError(msg);
-          if (msg === "session expired") setConnected(false);
-        }
+        return;
       }
+      try {
+        const p = await nowPlaying();
+        if (!alive) return;
+        setPlaying(p);
+        setProgress(p?.progressMs ?? 0);
+        setError("");
+      } catch (e) {
+        if (!alive) return;
+        const msg = (e as Error).message;
+        setError(msg);
+        if (msg === "session expired") setConnected(false);
+      }
+    };
+    // When the app is the one that pressed the button, it does not have to wait for the
+    // next scheduled poll to find out what happened.
+    pullRef.current = pull;
 
+    const loop = async () => {
+      if (!alive) return;
+      await pull();
       const { playing: cur, progress: at } = latest.current;
       timer = setTimeout(loop, DEMO ? 2000 : pollDelay(cur, at));
     };
@@ -312,6 +321,7 @@ export default function App() {
       .then((up) => {
         if (!alive || !up?.id) return;
         queued = up;
+        queuedRef.current = up;
         setUpNext({ label: `${up.artists.join(", ")} — ${up.title}`, headline: "" });
       })
       .catch(() => {
@@ -865,6 +875,11 @@ export default function App() {
     if (result === "ok") {
       setCanControl(true);
       setControlNote("");
+      // Spotify takes a moment to report a change it has just been told to make, so
+      // ask now and again shortly after rather than waiting out the poll interval.
+      pullRef.current?.();
+      setTimeout(() => pullRef.current?.(), 600);
+      setTimeout(() => pullRef.current?.(), 1800);
       return;
     }
     if (result === "premium-required") {
@@ -1093,7 +1108,24 @@ export default function App() {
                     </svg>
                   )}
                 </button>
-                <button aria-label={t.nextTrack} onClick={() => run(skipNext)}>
+                <button
+                  aria-label={t.nextTrack}
+                  onClick={() =>
+                    run(skipNext, () => {
+                      // The queued track and its notes are already in hand, so the
+                      // change can be shown before Spotify confirms it.
+                      const up = queuedRef.current;
+                      if (!up?.id) return;
+                      setPlaying({
+                        ...up,
+                        progressMs: 0,
+                        isPlaying: true,
+                      });
+                      setProgress(0);
+                      setUpNext(null);
+                    })
+                  }
+                >
                   <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
                     <path fill="currentColor" d="M15 6h2v12h-2zM7 6l8 6-8 6z" />
                   </svg>

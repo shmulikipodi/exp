@@ -158,8 +158,16 @@ GROQ_API_KEY_3=
 ```
 
 Gemini is tried first and Groq catches what it drops, so the two allowances add up.
-`GROQ_FIRST=1` reverses that, which is what you want if you would rather have live web
-search than Gemini's prose.
+
+They are not equals, and the ordering is deliberate. Measured on the same track: Gemini
+returns five notes, ten linked names and a headline that says something; Groq's
+`openai/gpt-oss-120b` returns two notes, no links, and "the haunting single from OK
+Computer" — the exact register the prompt bans. Groq is capacity, not quality.
+
+`groq/compound` carries its own web search and was the first choice for that reason, but
+its agentic pipeline rejects an input this size with a 413 — the prompt now carries
+credits, two articles, a timed lyric sheet and sometimes a podcast episode. `GROQ_MODEL`
+overrides the model; `GROQ_FIRST=1` puts Groq ahead of Gemini.
 
 ### Automatic switching
 

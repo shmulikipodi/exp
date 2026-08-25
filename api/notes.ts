@@ -1,6 +1,6 @@
 // The product's opinion about what a liner note is. Edit the prompt here, not inline.
 
-import { ground } from "./providers.js";
+import { ground, lastFallbackReason } from "./providers.js";
 import { gather, gatherAlbum, gatherArtist } from "./evidence.js";
 import { keyPool, poolStatus } from "./keys.js";
 import { fetchLyrics } from "./lyrics.js";
@@ -117,7 +117,26 @@ async function describePool(extra: string[]) {
       }
     }),
   );
-  return { keys: keys.length, slots };
+  const groq = keyPool("GROQ");
+  const groqSlots = await Promise.all(
+    groq.map(async (k) => {
+      try {
+        const r = await fetch("https://api.groq.com/openai/v1/models", {
+          headers: { authorization: `Bearer ${k}` },
+        });
+        const body: any = r.ok ? await r.json() : null;
+        const models = (body?.data ?? [])
+          .map((m: any) => m.id)
+          .filter((id: string) => /compound|llama|kimi|qwen|gpt/i.test(id))
+          .slice(0, 8);
+        return { key: `…${k.slice(-4)}`, valid: r.ok, status: r.status, models };
+      } catch {
+        return { key: `…${k.slice(-4)}`, valid: false, status: 0, models: [] };
+      }
+    }),
+  );
+
+  return { keys: keys.length, slots, groqKeys: groq.length, groq: groqSlots };
 }
 
 function readJson(req: any): Promise<Body> {
@@ -626,6 +645,8 @@ export default async function handler(req: any, res: any) {
         confidence: parsed.confidence === "low" ? "low" : "high",
         sources: [...evidence.sources, ...grounded.urls].slice(0, 8),
         live: grounded.live,
+        provider: grounded.provider,
+        fellBackBecause: lastFallbackReason || undefined,
         evidence: evidence.sources.length > 0,
       }),
     );

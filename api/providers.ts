@@ -5,6 +5,7 @@
 import { keyPool, withKey } from "./keys.js";
 
 export type Grounded = {
+  provider: "gemini" | "groq";
   text: string;
   urls: [string, string][];
   queries: string[];
@@ -20,11 +21,18 @@ export const MODEL_CHAIN = ["gemini-3.6-flash", "gemini-flash-lite-latest"];
 // has, every request was still paying for a failed attempt on every key before falling
 // back. Remember it and stop asking for a while.
 let searchBlockedUntil = 0;
+export let lastFallbackReason = "";
 const SEARCH_RETRY_AFTER_MS = 30 * 60_000;
 
 const GEMINI = (m: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
 const GROQ = "https://api.groq.com/openai/v1/chat/completions";
+
+// groq/compound carries its own web search, which is why it was the first choice — but
+// its agentic pipeline rejects an input this size outright, and this prompt now carries
+// credits, two articles, a timed lyric sheet and sometimes a podcast episode. A plain
+// model takes the whole thing. GROQ_MODEL overrides it.
+const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
 /**
  * Groq is a second pool rather than a replacement. It used to be all-or-nothing —
@@ -149,6 +157,7 @@ async function geminiOne(
     if (c?.web?.uri) urls.set(c.web.uri, c.web.title || c.web.uri);
   }
   return {
+    provider: "gemini",
     text: (data?.candidates?.[0]?.content?.parts ?? [])
       .map((p: any) => p.text ?? "")
       .join("")
@@ -159,17 +168,31 @@ async function geminiOne(
   };
 }
 
+// Groq caps the request body well below what Gemini accepts, and this prompt now
+// carries catalogue credits, two encyclopedia articles, a lyric sheet with timings and
+// sometimes a podcast episode. Trimmed from the end, where the least important evidence
+// sits, rather than failing outright.
+const GROQ_MAX_CHARS = 24_000;
+
+function trimForGroq(user: string): string {
+  if (user.length <= GROQ_MAX_CHARS) return user;
+  return (
+    user.slice(0, GROQ_MAX_CHARS) +
+    "\n\n[Evidence truncated to fit. Work from what is above; do not guess at what was cut.]"
+  );
+}
+
 async function groqCall(system: string, user: string): Promise<Grounded> {
   const data: any = await withKey("GROQ", async (key) => {
     const res = await fetch(GROQ, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
       body: JSON.stringify({
-        model: "groq/compound",
+        model: GROQ_MODEL,
         temperature: 0.3,
         messages: [
           { role: "system", content: system },
-          { role: "user", content: user },
+          { role: "user", content: trimForGroq(user) },
         ],
       }),
     });
@@ -202,7 +225,13 @@ async function groqCall(system: string, user: string): Promise<Grounded> {
     }
   }
 
-  return { text: String(msg.content ?? "").trim(), urls: [...urls], queries, live: true };
+  return {
+    provider: "groq",
+    text: String(msg.content ?? "").trim(),
+    urls: [...urls],
+    queries,
+    live: true,
+  };
 }
 
 export async function ground(
@@ -226,12 +255,16 @@ export async function ground(
   } catch (err) {
     const message = (err as Error).message;
     // Only a spent allowance is worth crossing to the other provider for.
-    const spent = /^QUOTA:|out of quota|No GEMINI key|No GROQ key/i.test(message);
+    const spent =
+      /^QUOTA:|out of quota|No GEMINI key|No GROQ key|too large|entity too large|context length/i.test(
+        message,
+      );
     if (!spent) throw err;
 
     const alternative = groqFirst ? keyPool("GEMINI", extra).length > 0 : hasGroq;
     if (!alternative) throw err;
 
+    lastFallbackReason = message.slice(0, 200);
     return await second();
   }
 }

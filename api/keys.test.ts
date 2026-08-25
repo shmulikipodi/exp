@@ -46,6 +46,15 @@ describe("the key pool", () => {
     expect(keyPool("GEMINI", ["user-one"])).toEqual(["user-one", "env-one"]);
   });
 
+  it("reads a key numbered _1, which is the obvious way to name a first one", () => {
+    delete process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY_1 = "first";
+    process.env.GEMINI_API_KEY_2 = "second";
+    expect(keyPool("GEMINI")).toEqual(["first", "second"]);
+    delete process.env.GEMINI_API_KEY_1;
+    delete process.env.GEMINI_API_KEY_2;
+  });
+
   it("does not hand back the same key twice", () => {
     process.env.GEMINI_API_KEY = "same";
     expect(keyPool("GEMINI", ["same"])).toEqual(["same"]);
