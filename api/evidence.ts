@@ -4,6 +4,58 @@
 // documents, so the notes don't depend on search-grounding quota.
 
 const UA = "exp/1.0 ( https://github.com/ )";
+
+/**
+ * An encyclopedia article opens with composition and recording and keeps the lawsuit,
+ * the accusation and the myth for further down. Taking the first N characters therefore
+ * kept the dullest part of every article and threw away the reason anyone remembers the
+ * song — Stairway to Heaven arrived without the backwards-message trial, which is the
+ * single thing most people know about it.
+ *
+ * So: keep the opening, then pick the paragraphs that carry a story.
+ */
+const SIGNALS =
+  /\b(sued|suing|lawsuit|court|jury|verdict|settle\w*|plagiar\w*|stole|stolen|credit\w*|royalt\w*|banned|ban\b|censor\w*|controvers\w*|accus\w*|alleg\w*|denied|denies|rumou?r\w*|myth|legend|hoax|backward\w*|backmask\w*|subliminal|satan\w*|occult|protest\w*|boycott\w*|refus\w*|walked out|quit|fired|sacked|feud|argu\w*|fight|punch\w*|died|death|overdose|suicide|funeral|tribute|arrest\w*|drug\w*|affair|divorce|breakup|split|reunit\w*|apolog\w*|withdraw\w*|pulled|scrap\w*|almost|nearly|rejected|turned down|threat\w*|sample\w*|interpolat\w*|cover version|misheard|mistake|accident\w*|improvis\w*|first take|one take)\b/i;
+
+function highlights(text: string, budget: number): string {
+  if (text.length <= budget) return text;
+
+  const paragraphs = text.split(/\n+/).filter((p) => p.trim().length > 40);
+  if (paragraphs.length === 0) return text.slice(0, budget);
+
+  // The opening establishes what the song is; it always stays.
+  const kept: string[] = [];
+  let used = 0;
+  for (const p of paragraphs.slice(0, 3)) {
+    kept.push(p);
+    used += p.length;
+  }
+
+  // Then whatever carries a story — richest first, not first-come. Taking them in
+  // document order let one long lawsuit section spend the whole budget before the
+  // article ever got to the myth people actually remember.
+  const scored = paragraphs
+    .slice(3)
+    .map((p) => ({ p, score: (p.match(new RegExp(SIGNALS.source, "gi")) ?? []).length }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  for (const { p } of scored) {
+    if (used >= budget) break;
+    kept.push(p);
+    used += p.length;
+  }
+
+  // Still room? Fill in with the rest rather than leaving the budget unspent.
+  for (const p of paragraphs.slice(3)) {
+    if (used >= budget) break;
+    if (kept.includes(p)) continue;
+    kept.push(p);
+    used += p.length;
+  }
+
+  return kept.join("\n\n").slice(0, budget);
+}
 const MB = "https://musicbrainz.org/ws/2";
 const wpApi = (lang: string) => `https://${lang}.wikipedia.org/w/api.php`;
 
@@ -249,7 +301,7 @@ async function wikipedia(
         ? ""
         : `NOTE: this article is about the album, not this specific track. Do not assume ` +
           `anything in it describes the recording that is playing unless it says so.\n`) +
-      text.slice(0, 7000),
+      highlights(text, 9000),
     sources: [[url, `${tag} — ${page.title}`]],
   };
 }
@@ -348,7 +400,7 @@ async function wikipediaOn(term: string, label: string, lang = "en"): Promise<Ev
 
   const tag = lang === "en" ? "Wikipedia" : `Wikipedia (${lang})`;
   return {
-    text: `${label} — ${tag}: ${page.title}\n${text.slice(0, 9000)}`,
+    text: `${label} — ${tag}: ${page.title}\n${highlights(text, 11000)}`,
     sources: [
       [
         `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, "_"))}`,
