@@ -210,7 +210,13 @@ button.ghost:hover { color: var(--dim); background: none; }
      used to be a flat 46vh, which on any wide window left a band of empty space beside
      the sleeve — the artwork is the point of this column, so it gets the room.
      300px is what the title, artist, album, bar, clock and transport need under it. */
-  width: min(100%, calc(100dvh - 300px));
+  /* The column's own vertical padding is 8vh, so the artwork gets 92dvh minus what sits
+     under it — about 215px of text and transport plus its own 30px margin. Budgeting
+     against 100dvh ignored the padding and pushed the transport off the bottom of a
+     short window. Whatever is left over is split either side rather than dumped on one,
+     so a short window reads as margin instead of a slab beside the sleeve. */
+  width: min(100%, calc(92dvh - 245px));
+  margin-inline: auto;
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: 10px;
