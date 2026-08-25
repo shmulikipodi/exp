@@ -102,12 +102,78 @@
 .setup { position: relative; max-width: 680px; margin: 0 auto; padding: 88px 26px 120px; }
 
 /* The playing view fills the window: sleeve on one side, notes scrolling on the other. */
+/* Columns above, player across the bottom — the shape every music app settles on,
+   because the thing you always need is the transport and the thing you sometimes need
+   is everything else. */
 .stage {
   position: relative;
   display: flex;
-  align-items: stretch;
+  flex-direction: column;
   height: var(--app-h);
+  overflow: clip;
+}
+
+.columns {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  /* Not "hidden": a hidden box still scrolls when script asks it to, and
+     scrollIntoView reaching for a note was dragging the whole layout up behind the
+     transport. Clip refuses. */
+  overflow: clip;
+}
+
+.playerbar {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(320px, 2fr) minmax(120px, 1fr);
+  align-items: center;
+  gap: 18px;
+  padding: 10px 20px 14px;
+  border-top: 1px solid var(--line);
+  background: rgba(11, 10, 9, 0.72);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.pb-track { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.pb-track img { width: 46px; height: 46px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+.pb-track > span { min-width: 0; }
+.pb-track b {
+  display: block;
+  font: 500 13px inherit;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pb-track span span {
+  display: block;
+  font: 11px var(--mono);
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pb-mid { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.pb-mid .transport { margin-top: 0; gap: 14px; }
+.pb-mid .transport button { width: 34px; height: 34px; }
+.pb-mid .transport button.big { width: 42px; height: 42px; box-shadow: none; }
+.pb-mid .transport button.big svg { width: 18px; height: 18px; }
+
+.pb-line { display: flex; align-items: center; gap: 10px; width: 100%; }
+.pb-line .bar { flex: 1; }
+.pb-time { font: 10px var(--mono); color: var(--faint); flex-shrink: 0; min-width: 34px; }
+.pb-line .pb-time:last-child { text-align: end; }
+
+.pb-end { display: flex; justify-content: flex-end; min-width: 0; }
+.pb-next {
+  font: 11px var(--mono);
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .stage .idle { margin: auto; text-align: center; }
@@ -619,16 +685,27 @@ button.ghost:hover { color: var(--dim); background: none; }
 .grip {
   display: none;
   position: relative;
-  flex: 0 0 4px;
+  flex: 0 0 8px;
   cursor: col-resize;
   touch-action: none;
+}
+/* A wider invisible target than the line it draws, and a visible line down the middle
+   so there is something to aim at in the first place. */
+.grip::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 3px;
+  width: 2px;
+  background: var(--line);
+  transition: background 0.15s;
 }
 .grip::after {
   content: "";
   position: absolute;
-  inset: 0 -5px;
+  inset: 0 -6px;
 }
-.grip:hover, body.dragging .grip { background: var(--accent-dim); }
+.grip:hover::before, body.dragging .grip::before { background: var(--accent); }
 /* Nothing should select or hover while a divider is moving. */
 body.dragging { cursor: col-resize; user-select: none; }
 
@@ -1059,7 +1136,11 @@ footer { max-width: 30em; margin-top: 48px; padding-top: 24px; border-top: 1px s
 [dir="rtl"] .pip { margin-left: -1.5px; }
 
 @media (max-width: 900px) {
-  .stage { position: relative; display: block; height: var(--app-h); overflow: hidden; }
+  .stage { position: relative; display: flex; flex-direction: column; height: var(--app-h); overflow: clip; }
+  .columns { display: block; flex: 1; min-height: 0; position: relative; }
+  .playerbar { grid-template-columns: 1fr auto; gap: 10px; padding: 8px 14px 12px; }
+  .pb-end { display: none; }
+  .pb-mid { align-items: stretch; }
 
   /* The sleeve overlays the notes and collapses as you scroll: the picture gets the
      whole first screen, then leaves everything else behind as a compact bar.

@@ -120,16 +120,20 @@ function readTold(artist: string): string[] {
   if (!artist) return [];
   try {
     const raw = JSON.parse(localStorage.getItem(toldKey(artist)) ?? "[]");
-    return Array.isArray(raw) ? raw.slice(0, 24) : [];
+    return Array.isArray(raw) ? raw.slice(-30) : [];
   } catch {
     return [];
   }
 }
 
 function rememberTold(artist: string, notes: { kind: string; title: string; body: string }[]) {
-  const fresh = notes.filter((n) => n.kind === "lore").map((n) => `${n.title}: ${n.body}`);
+  // Every note, not only the ones tagged as band history. Hearing Dreams and then The
+  // Chain produced the keyboardist's death and Stevie Nicks refusing a reunion both
+  // times — neither was tagged "lore", so neither was remembered. Anything true of the
+  // band rather than the track will repeat unless all of it is written down.
+  const fresh = notes.map((n) => `${n.title}: ${n.body.slice(0, 180)}`);
   if (!artist || fresh.length === 0) return;
-  const merged = [...new Set([...readTold(artist), ...fresh])].slice(-24);
+  const merged = [...new Set([...readTold(artist), ...fresh])].slice(-30);
   try {
     localStorage.setItem(toldKey(artist), JSON.stringify(merged));
   } catch {
@@ -1207,6 +1211,7 @@ export default function App() {
 
       {track && (
         <>
+          <div className="columns">
           <section className="sleeve">
             {track.art && (
               <img
@@ -1239,86 +1244,9 @@ export default function App() {
               </button>
               {track.released && <span> · {track.released.slice(0, 4)}</span>}
             </p>
-            <div
-              className="bar"
-              dir="ltr"
-              onClick={(e) => {
-                if (canControl === false || viewing || !track.durationMs) return;
-                const box = e.currentTarget.getBoundingClientRect();
-                const at = Math.min(1, Math.max(0, (e.clientX - box.left) / box.width));
-                const target = at * track.durationMs;
-                run(() => seek(target), () => setProgress(target));
-              }}
-            >
-              <div className="fill" style={{ width: `${fraction * 100}%` }} />
-              {(activeNotes?.notes ?? []).map((n, i) =>
-                n.at === null ? null : (
-                  <span
-                    key={i}
-                    className={`pip${n.at <= fraction ? " lit" : ""}${
-                      n.atBasis === "documented" || n.atBasis === "heard" ? " sure" : ""
-                    }`}
-                    style={{ left: `${n.at * 100}%` }}
-                    title={n.title}
-                  />
-                ),
-              )}
-            </div>
-            <p className="time" dir="ltr">
-              {mmss(progress)} <span>/ {mmss(track.durationMs)}</span>
-            </p>
 
-            {canControl !== false && !viewing && (
-              <div className="transport" dir="ltr">
-                <button aria-label={t.prevTrack} onClick={() => run(skipPrev)}>
-                  <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
-                    <path fill="currentColor" d="M7 6h2v12H7zm10 0v12l-8-6z" />
-                  </svg>
-                </button>
-                <button
-                  className="big"
-                  aria-label={t.playPause}
-                  onClick={() =>
-                    run(
-                      track.isPlaying ? pause : play,
-                      () => setPlaying((p) => (p ? { ...p, isPlaying: !p.isPlaying } : p)),
-                    )
-                  }
-                >
-                  {track.isPlaying ? (
-                    <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
-                      <path fill="currentColor" d="M7 5h4v14H7zm6 0h4v14h-4z" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
-                      <path fill="currentColor" d="M8 5l11 7-11 7z" />
-                    </svg>
-                  )}
-                </button>
-                <button
-                  aria-label={t.nextTrack}
-                  onClick={() =>
-                    run(skipNext, () => {
-                      // The queued track and its notes are already in hand, so the
-                      // change can be shown before Spotify confirms it.
-                      const up = queuedRef.current;
-                      if (!up?.id) return;
-                      setPlaying({
-                        ...up,
-                        progressMs: 0,
-                        isPlaying: true,
-                      });
-                      setProgress(0);
-                      setUpNext(null);
-                    })
-                  }
-                >
-                  <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
-                    <path fill="currentColor" d="M15 6h2v12h-2zM7 6l8 6-8 6z" />
-                  </svg>
-                </button>
-              </div>
-            )}
+
+
 
             {!viewing && upNext && (
               <p className="up-next">
@@ -1655,6 +1583,108 @@ export default function App() {
               onAsk={askTopic}
             />
           )}
+          </div>
+
+          <div className="playerbar">
+            <div className="pb-track">
+              {track.art && <img src={track.art} alt="" crossOrigin="anonymous" />}
+              <span>
+                <b>{track.title}</b>
+                <span>{track.artists.join(", ")}</span>
+              </span>
+            </div>
+
+            <div className="pb-mid">
+              {canControl !== false && !viewing && (
+                <div className="transport" dir="ltr">
+                  <button aria-label={t.prevTrack} onClick={() => run(skipPrev)}>
+                    <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
+                      <path fill="currentColor" d="M7 6h2v12H7zm10 0v12l-8-6z" />
+                    </svg>
+                  </button>
+                  <button
+                    className="big"
+                    aria-label={t.playPause}
+                    onClick={() =>
+                      run(
+                        track.isPlaying ? pause : play,
+                        () => setPlaying((p) => (p ? { ...p, isPlaying: !p.isPlaying } : p)),
+                      )
+                    }
+                  >
+                    {track.isPlaying ? (
+                      <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+                        <path fill="currentColor" d="M7 5h4v14H7zm6 0h4v14h-4z" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+                        <path fill="currentColor" d="M8 5l11 7-11 7z" />
+                      </svg>
+                    )}
+                  </button>
+                  <button
+                    aria-label={t.nextTrack}
+                    onClick={() =>
+                      run(skipNext, () => {
+                        // The queued track and its notes are already in hand, so the
+                        // change can be shown before Spotify confirms it.
+                        const up = queuedRef.current;
+                        if (!up?.id) return;
+                        setPlaying({
+                            ...up,
+                            progressMs: 0,
+                            isPlaying: true,
+                        });
+                        setProgress(0);
+                        setUpNext(null);
+                      })
+                    }
+                  >
+                    <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
+                      <path fill="currentColor" d="M15 6h2v12h-2zM7 6l8 6-8 6z" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              <div className="pb-line">
+                <span className="pb-time">{mmss(progress)}</span>
+                <div
+                  className="bar"
+                  dir="ltr"
+                  onClick={(e) => {
+                    if (canControl === false || viewing || !track.durationMs) return;
+                    const box = e.currentTarget.getBoundingClientRect();
+                    const at = Math.min(1, Math.max(0, (e.clientX - box.left) / box.width));
+                    const target = at * track.durationMs;
+                    run(() => seek(target), () => setProgress(target));
+                  }}
+                >
+                  <div className="fill" style={{ width: `${fraction * 100}%` }} />
+                  {(activeNotes?.notes ?? []).map((n, i) =>
+                    n.at === null ? null : (
+                      <span
+                        key={i}
+                        className={`pip${n.at <= fraction ? " lit" : ""}${
+                          n.atBasis === "documented" || n.atBasis === "heard" ? " sure" : ""
+                        }`}
+                        style={{ left: `${n.at * 100}%` }}
+                        title={n.title}
+                      />
+                    ),
+                  )}
+                </div>
+                <p className="time" dir="ltr">
+                  {mmss(progress)} <span>/ {mmss(track.durationMs)}</span>
+                </p>
+                <span className="pb-time">{mmss(track.durationMs)}</span>
+              </div>
+            </div>
+
+            <div className="pb-end">
+              {upNext && <span className="pb-next">{t.upNext} {upNext.label}</span>}
+            </div>
+          </div>
+
         </>
       )}
     </main>

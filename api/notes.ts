@@ -682,7 +682,7 @@ export default async function handler(req: any, res: any) {
 
     // Band history is true of every track this artist ever made, so without a memory
     // it would be told again on each one. This is what has already been said.
-    const told = (body.told ?? []).filter(Boolean).slice(0, 24);
+    const told = (body.told ?? []).filter(Boolean).slice(-30);
 
     const already = (body.have ?? []).filter((n) => n?.title);
     const rejected = (body.rejected ?? []).filter(Boolean);
@@ -698,9 +698,12 @@ export default async function handler(req: any, res: any) {
       lyricBlock +
       wideBlock +
       (told.length
-        ? `ALREADY TOLD THIS LISTENER about this band, on other tracks. Do not repeat ` +
-          `any of it, and do not write a "lore" note at all unless you have something ` +
-          `else worth telling:\n${told.map((x) => `- ${x}`).join("\n")}\n\n`
+        ? `ALREADY TOLD THIS LISTENER, on other tracks by this artist. Do not write any ` +
+          `of it again — not the same fact in different words, and not a shorter version ` +
+          `of it. Anything true of the band rather than of this recording has almost ` +
+          `certainly been said already; check this list before writing such a note, and ` +
+          `if everything you had is here, write about the track instead:\n` +
+          `${told.map((x) => `- ${x}`).join("\n")}\n\n`
         : "") +
       (rejected.length
         ? `The reader marked these earlier notes as WRONG. Do not repeat them, and do not ` +

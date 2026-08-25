@@ -11,6 +11,11 @@
 
 html, body, #root { min-height: 100%; }
 
+/* The player view manages every scroll it has. Letting the document scroll as well
+   meant scrollIntoView, reaching for a note or a lyric, could drag the whole page up
+   and leave the transport sitting above a strip of nothing. */
+body:has(.stage) { overflow: hidden; height: 100%; }
+
 body {
   margin: 0;
   background: var(--bg);
