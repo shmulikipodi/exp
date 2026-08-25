@@ -41,6 +41,10 @@ You are NOT writing an encyclopedia entry. Hard rules:
   Two of those get a prefix, because the reader can act on them: a musician or band is
   [[artist:Eddie Hazel]], and another song is [[song:Maggot Brain]]. Everything else
   stays unprefixed. Do not prefix the song being written about or its own artist.
+  When a name is ambiguous on Wikipedia, give the article title after a pipe so the link
+  lands on the right one: [[artist:George Clinton|George Clinton (musician)]] — plain
+  "George Clinton" is the American Founding Father. The reader sees the part before the
+  pipe. Do this for anyone whose name is shared with someone better known.
   Wrap the name only — "[[Eddie Hazel]]'s guitar", never "[[Eddie Hazel's guitar]]" — and
   write the name as it would be titled, not as a description. Do not wrap ordinary words,
   and do not put a link in the note's title.
@@ -189,7 +193,7 @@ export function toFraction(at: unknown, durationMs: number): number | null {
   return ms / durationMs;
 }
 
-const LINK = /\[\[(?:(artist|song):)?([^\]]{2,60})\]\]/g;
+const LINK = /\[\[(?:(artist|song):)?([^\]|]{2,60})(?:\|([^\]]{2,80}))?\]\]/g;
 
 /**
  * Resolves the [[marked]] names to real Wikipedia articles in one request, rather than
@@ -199,14 +203,25 @@ const LINK = /\[\[(?:(artist|song):)?([^\]]{2,60})\]\]/g;
 async function resolveLinks(texts: string[], lang = "en"): Promise<Record<string, string>> {
   const terms = new Set<string>();
   for (const text of texts) {
-    for (const m of String(text ?? "").matchAll(LINK)) terms.add(m[2].trim());
+    // The lookup title when one is given, the visible name otherwise. Stored under the
+    // visible name, which is what the reader's copy carries.
+    for (const m of String(text ?? "").matchAll(LINK)) {
+      terms.add(`${m[2].trim()}\u0000${(m[3] ?? m[2]).trim()}`);
+    }
   }
   if (terms.size === 0) return {};
 
-  const wanted = [...terms].slice(0, 40);
+  const pairs = [...terms].slice(0, 40).map((t) => {
+    const [shown, lookup] = t.split("\u0000");
+    return { shown, lookup };
+  });
+  const byLookup = new Map(pairs.map((p) => [p.lookup, p.shown]));
+  const wanted = pairs.map((p) => p.lookup);
   const search = (t: string) =>
     `https://${lang}.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(t)}`;
-  const links: Record<string, string> = Object.fromEntries(wanted.map((t) => [t, search(t)]));
+  const links: Record<string, string> = Object.fromEntries(
+    pairs.map((p) => [p.shown, search(p.lookup)]),
+  );
 
   /** Resolves as many of `names` as one edition has articles for. */
   const resolveIn = async (edition: string, names: string[]): Promise<string[]> => {
@@ -231,9 +246,8 @@ async function resolveLinks(texts: string[], lang = "en"): Promise<Record<string
           if (original) missed.push(original);
           continue;
         }
-        links[original] = `https://${edition}.wikipedia.org/wiki/${encodeURIComponent(
-          page.title.replace(/ /g, "_"),
-        )}`;
+        links[byLookup.get(original) ?? original] =
+          `https://${edition}.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, "_"))}`;
       }
     } catch {
       return names;
@@ -245,7 +259,44 @@ async function resolveLinks(texts: string[], lang = "en"): Promise<Record<string
   // a dead end for the person reading it. Anything it has no article for falls back to
   // English, which usually does.
   const missing = await resolveIn(lang, wanted);
-  if (lang !== "en" && missing.length) await resolveIn("en", missing);
+  if (lang === "en" || !missing.length) return links;
+
+  await resolveIn("en", missing);
+
+  // Names are written in Latin script even inside a Hebrew note, so "Eddie Hazel" finds
+  // nothing on he.wikipedia — the article there is titled in Hebrew. Wikipedia knows the
+  // pairing, so ask it: the English article's language link is the Hebrew one.
+  const viaEnglish = missing.filter((t) =>
+    links[byLookup.get(t) ?? t]?.includes("en.wikipedia.org/wiki/"),
+  );
+  if (!viaEnglish.length) return links;
+
+  try {
+    const url =
+      `https://en.wikipedia.org/w/api.php?action=query&redirects=1&format=json&origin=*` +
+      `&prop=langlinks&lllang=${encodeURIComponent(lang)}&lllimit=500&titles=` +
+      encodeURIComponent(viaEnglish.join("|"));
+    const res = await fetch(url, { headers: { "user-agent": "exp/1.0 ( https://github.com/ )" } });
+    if (!res.ok) return links;
+    const data: any = await res.json();
+
+    const trace = new Map<string, string>();
+    for (const n of data?.query?.normalized ?? []) trace.set(n.to, n.from);
+    for (const r of data?.query?.redirects ?? []) trace.set(r.to, trace.get(r.from) ?? r.from);
+
+    for (const page of Object.values<any>(data?.query?.pages ?? {})) {
+      const translated = page?.langlinks?.[0]?.["*"];
+      if (!translated) continue;
+      const original = trace.get(page.title) ?? page.title;
+      const shown = byLookup.get(original) ?? original;
+      if (!links[shown]) continue;
+      links[shown] = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(
+        String(translated).replace(/ /g, "_"),
+      )}`;
+    }
+  } catch {
+    // The English links already work; this only makes them better.
+  }
 
   return links;
 }

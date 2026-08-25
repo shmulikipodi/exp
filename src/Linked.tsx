@@ -1,8 +1,9 @@
+import type { Strings } from "./i18n";
 // Note text arrives with [[names]] marked and a map of where each one goes, resolved
 // against Wikipedia on the server. The model never writes a URL — it only says which
 // words are worth looking up.
 
-const LINK = /\[\[(?:(artist|song):)?([^\]]{2,60})\]\]/g;
+const LINK = /\[\[(?:(artist|song):)?([^\]|]{2,60})(?:\|[^\]]{2,80})?\]\]/g;
 
 type Part = string | { term: string; href: string; kind?: "artist" | "song" };
 
@@ -11,11 +12,13 @@ export function Linked({
   links,
   onPlay,
   onOpenArtist,
+  t,
 }: {
   text: string;
   links?: Record<string, string>;
   onPlay?: (query: string) => void;
   onOpenArtist?: (query: string) => void;
+  t?: Strings;
 }) {
   if (!text.includes("[[")) return <>{text}</>;
 
@@ -57,7 +60,7 @@ export function Linked({
             {part.kind === "song" && onPlay && (
               <button
                 className="act"
-                title={`Play ${part.term}`}
+                title={t ? t.playThis(part.term) : `Play ${part.term}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onPlay(part.term);
@@ -69,7 +72,7 @@ export function Linked({
             {part.kind === "artist" && onOpenArtist && (
               <button
                 className="act"
-                title={`Open ${part.term} on Spotify`}
+                title={t ? t.openArtist(part.term) : `Open ${part.term} on Spotify`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onOpenArtist(part.term);

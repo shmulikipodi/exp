@@ -1224,6 +1224,7 @@ export default function App() {
                       links={activeNotes.links}
                       onPlay={playNamed}
                       onOpenArtist={openArtist}
+                      t={t}
                     />
                   </p>
                 )}
@@ -1278,6 +1279,7 @@ export default function App() {
                         links={activeNotes.links}
                         onPlay={playNamed}
                         onOpenArtist={openArtist}
+                      t={t}
                       />
                     </p>
 
@@ -1331,6 +1333,7 @@ export default function App() {
                             links={activeNotes.links}
                             onPlay={playNamed}
                             onOpenArtist={openArtist}
+                      t={t}
                           />
                           </p>
                           {(a.sources ?? []).length > 0 && (
@@ -1359,6 +1362,7 @@ export default function App() {
                             links={activeNotes.links}
                             onPlay={playNamed}
                             onOpenArtist={openArtist}
+                      t={t}
                           />
                       </p>
                       {(a.sources ?? []).length > 0 && (
