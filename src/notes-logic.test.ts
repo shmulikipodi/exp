@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchesLang, schedule } from "./notes-logic";
+import { MIN_NOTES, dividerWidth, grabOffset, matchesLang, schedule } from "./notes-logic";
 
 const note = (body: string) => ({ body });
 
@@ -61,5 +61,46 @@ describe("matchesLang", () => {
       notes: [note("הוקלט ב-United Sound Systems בדטרויט.")],
     };
     expect(matchesLang(withNames, "he")).toBe(true);
+  });
+});
+
+describe("dragging a divider", () => {
+  const box = { left: 0, right: 1400, width: 1400 };
+
+  it("does not jump when the hand lands off-centre on the divider", () => {
+    // The sleeve is 400 wide and the cursor grabs the divider 6px past its edge.
+    const grab = grabOffset("sleeve", false, 406, box, 400);
+    // First move event, cursor has not travelled: the width must not change.
+    expect(dividerWidth("sleeve", false, 406, grab, box, 300)).toBe(400);
+    // And it tracks the hand one-for-one from there.
+    expect(dividerWidth("sleeve", false, 456, grab, box, 300)).toBe(450);
+    expect(dividerWidth("sleeve", false, 356, grab, box, 300)).toBe(350);
+  });
+
+  it("holds the same grip in Hebrew, where the column hangs off the other edge", () => {
+    const grab = grabOffset("sleeve", true, 1400 - 406, box, 400);
+    expect(dividerWidth("sleeve", true, 1400 - 406, grab, box, 300)).toBe(400);
+    // Dragging toward the middle of a right-to-left page widens the sleeve.
+    expect(dividerWidth("sleeve", true, 1400 - 456, grab, box, 300)).toBe(450);
+  });
+
+  it("moves the panel the opposite way, since it hangs off the far edge", () => {
+    const grab = grabOffset("rail", false, 1400 - 306, box, 300);
+    expect(dividerWidth("rail", false, 1400 - 306, grab, box, 400)).toBe(300);
+    expect(dividerWidth("rail", false, 1400 - 356, grab, box, 400)).toBe(350);
+  });
+
+  it("never squeezes the reading column below what a column is", () => {
+    const grab = grabOffset("sleeve", false, 400, box, 400);
+    // Panel already at 640; the sleeve may not take more than what is left.
+    const wide = dividerWidth("sleeve", false, 1399, grab, box, 640);
+    expect(wide).toBe(1400 - 640 - MIN_NOTES);
+    expect(1400 - wide - 640).toBeGreaterThanOrEqual(MIN_NOTES);
+  });
+
+  it("keeps each column inside its own limits", () => {
+    const grab = grabOffset("rail", false, 1400, box, 0);
+    expect(dividerWidth("rail", false, 1400, grab, box, 300)).toBe(240);
+    expect(dividerWidth("rail", false, 0, grab, box, 300)).toBe(640);
   });
 });

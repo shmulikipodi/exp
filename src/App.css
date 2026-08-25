@@ -652,7 +652,14 @@ button.ghost:hover { color: var(--dim); background: none; }
   background: linear-gradient(180deg, rgba(11,10,9,0.56) 0%, rgba(11,10,9,0.66) 45%, rgba(11,10,9,0.70) 100%);
 }
 
-.lyrics-part .rail-body { padding-inline-end: 3vw; }
+/* No mask here, unlike the other panels. A mask over sixty separately-composited
+   blurred lines makes Chrome draw the seam of each one — a faint rectangle around
+   every lyric. The blur already fades the ends, which is what the mask was for. */
+.lyrics-part .rail-body {
+  padding-inline-end: 3vw;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
 .rail-expand { margin-inline-start: auto; font-size: 13px; opacity: 0.75; }
 .rail-expand:hover { opacity: 1; }
 
@@ -671,7 +678,6 @@ button.ghost:hover { color: var(--dim); background: none; }
      no matter which four colours the record turned out to be. */
   text-shadow: 0 1px 14px rgba(11,10,9,0.55);
   transition: opacity 0.4s ease, filter 0.4s ease, color 0.4s ease, transform 0.4s ease;
-  will-change: filter, opacity;
 }
 [dir="rtl"] .lyric-line { transform-origin: right center; }
 .lyric-line.seekable { cursor: pointer; }

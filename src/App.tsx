@@ -23,7 +23,7 @@ import {
 } from "./spotify";
 import { STRINGS, storedLang, storeLang, type Lang } from "./i18n";
 import { accentFrom, paletteFrom, type Swatch } from "./palette";
-import { matchesLang, schedule } from "./notes-logic";
+import { dividerWidth, grabOffset, matchesLang, schedule } from "./notes-logic";
 import { Keys, liveKeys } from "./Keys";
 import { onPlayer, startPlayer, type PlayerState } from "./player";
 import { History } from "./History";
@@ -273,28 +273,22 @@ export default function App() {
       if (!stage) return;
       const rtl = document.documentElement.dir === "rtl";
 
-      // The reading column has to survive both dividers. Clamping each one on its own
-      // let the two of them squeeze it to 161px between them, which is not a column.
-      const MIN_NOTES = 340;
       const widthOf = (sel: string) =>
         stage.querySelector(sel)?.getBoundingClientRect().width ?? 0;
+      const boxOf = () => {
+        const r = stage.getBoundingClientRect();
+        return { left: r.left, right: r.right, width: r.width };
+      };
+
+      const mine = which === "sleeve" ? ".sleeve" : ".rail";
+      const other = which === "sleeve" ? ".rail" : ".sleeve";
+      const grab = grabOffset(which, rtl, down.clientX, boxOf(), widthOf(mine));
 
       const move = (e: PointerEvent) => {
-        const box = stage.getBoundingClientRect();
-        const fromStart = rtl ? box.right - e.clientX : e.clientX - box.left;
-        const fromEnd = rtl ? e.clientX - box.left : box.right - e.clientX;
-
-        if (which === "sleeve") {
-          const room = box.width - widthOf(".rail") - MIN_NOTES;
-          const w = Math.round(Math.min(760, Math.max(300, Math.min(fromStart, room))));
-          setSleeveW(`${w}px`);
-          localStorage.setItem("ln.sleeveW", `${w}px`);
-        } else {
-          const room = box.width - widthOf(".sleeve") - MIN_NOTES;
-          const w = Math.round(Math.min(640, Math.max(240, Math.min(fromEnd, room))));
-          setRailW(`${w}px`);
-          localStorage.setItem("ln.railW", `${w}px`);
-        }
+        const w = dividerWidth(which, rtl, e.clientX, grab, boxOf(), widthOf(other));
+        const set = which === "sleeve" ? setSleeveW : setRailW;
+        set(`${w}px`);
+        localStorage.setItem(which === "sleeve" ? "ln.sleeveW" : "ln.railW", `${w}px`);
       };
 
       const up = () => {
