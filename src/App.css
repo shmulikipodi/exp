@@ -712,6 +712,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 .kind.sample, .kind.personnel { color: #7fb3d5; }
 .kind.afterlife { color: #b98cc9; }
 .kind.version { color: #8fbf9f; }
+.kind.lore { color: #c98b8b; }
 
 .note h3 {
   font-family: var(--note-title);

@@ -339,8 +339,14 @@ export async function gather(
   const empty = { text: "", sources: [] as [string, string][] };
   // Each source gets its own clock. Racing them as a group meant one slow catalogue
   // lookup threw away an encyclopedia article that had already arrived.
-  const [mb, ...articles] = await Promise.all([
+  const [mb, band, ...articles] = await Promise.all([
     withBudget(musicbrainz(title, artist, isrc, durationMs).catch(() => empty), empty),
+    // A small, story-filtered slice of the band's own article. What happened to the
+    // people who made a record is often the most remarkable thing about it, and a song
+    // page never says so — Pantera's guitarist was shot dead on stage and buried with
+    // one of Eddie Van Halen's guitars, and no amount of reading about "Floods" finds
+    // that out.
+    withBudget(bandStory(artist, wikis[0]).catch(() => empty), empty),
     // Every language edition worth asking, at once.
     ...wikis.map((lang) =>
       withBudget(wikipedia(title, artist, album, lang).catch(() => empty), empty),
@@ -362,8 +368,8 @@ export async function gather(
   });
 
   const value: Evidence = {
-    text: [mb.text, ...kept.map((a) => a.text)].filter(Boolean).join("\n\n---\n\n"),
-    sources: [...mb.sources, ...kept.flatMap((a) => a.sources)],
+    text: [mb.text, ...kept.map((a) => a.text), band.text].filter(Boolean).join("\n\n---\n\n"),
+    sources: [...mb.sources, ...kept.flatMap((a) => a.sources), ...band.sources],
   };
 
   evidenceCache.set(key, { at: Date.now(), value });
@@ -407,6 +413,17 @@ async function wikipediaOn(term: string, label: string, lang = "en"): Promise<Ev
         `${tag} — ${page.title}`,
       ],
     ],
+  };
+}
+
+/** What became of the band, kept short. Only the paragraphs that carry a story. */
+async function bandStory(artist: string, lang: string): Promise<Evidence> {
+  const found = await wikipediaOn(`${artist} band musician`, artist, lang);
+  if (!found.text) return { text: "", sources: [] };
+  return {
+    text: `ABOUT THE BAND ITSELF — what happened to the people who made this record. Use at
+most one of these, and only if it is genuinely remarkable.\n${highlights(found.text, 3500)}`,
+    sources: found.sources,
   };
 }
 

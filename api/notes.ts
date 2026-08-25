@@ -27,14 +27,23 @@ What earns a note, in roughly this order:
      Heaven wants the backwards-message trial; someone playing Bitter Sweet Symphony
      wants the royalties. Skipping past that to a mixing detail is a failure, not
      restraint.
-  2. SOMETHING THAT CHANGES HOW THE SONG SOUNDS NEXT TIME. A part that is not what it
+  2. WHAT THE SONG IS ACTUALLY ABOUT. Not a paraphrase of the words — the reader has
+     those. What it was written about, who it was written to, what the writer has said
+     it means, what it was widely taken to mean and whether that was right. If the
+     lyrics are given below, quote the line that carries it. A set of notes about how a
+     record was made that never says what it is about has answered the wrong question.
+  3. SOMETHING THAT CHANGES HOW THE SONG SOUNDS NEXT TIME. A part that is not what it
      appears to be, a sound made by an object nobody would guess, a voice that belongs
      to someone else, a mistake left in.
-  3. WHAT NEARLY HAPPENED INSTEAD. The version that was scrapped, the singer who turned
+  4. WHAT NEARLY HAPPENED INSTEAD. The version that was scrapped, the singer who turned
      it down, the accident that made it, the label that refused it.
-  4. WHO WAS ACTUALLY THERE, when it is genuinely surprising — an uncredited player, a
+  6. WHO WAS ACTUALLY THERE, when it is genuinely surprising — an uncredited player, a
      famous name in a small role.
-  5. WHAT THE SONG IS ABOUT, when it is documented and not obvious from the words.
+  5. WHAT BECAME OF THE PEOPLE WHO MADE IT, when it is genuinely remarkable — a murder,
+     a disappearance, a fortune lost, a burial with someone else's guitar. At most ONE
+     such note per track, kind "lore", and only when it is the kind of thing a listener
+     would be sorry not to know. It is about the band, not this recording, and a set of
+     notes that is mostly band history has stopped being about the song.
 
 What does not earn a note, however well sourced:
 
@@ -98,6 +107,7 @@ Note kinds, pick whichever the evidence actually supports:
                guessed. If the lyrics are given below, quote the line you mean
   moment     — a thing audible at a specific point in the recording
   afterlife  — what happened to it after release: lawsuits, chart facts, covers, reuse
+  lore       — what became of the band or its members. At most one per track
 
 "at" places a note at a moment in the recording. Give it as a timestamp inside the
 track's length — "2:07" — never a fraction or a percentage.
@@ -140,6 +150,7 @@ type Body = {
   lang?: string;
   isrc?: string;
   wide?: boolean;
+  told?: string[];
   keys?: string[];
   check?: boolean;
 };
@@ -669,6 +680,10 @@ export default async function handler(req: any, res: any) {
       evidence.sources = [...evidence.sources, ...artistEv.sources, ...albumEv.sources].slice(0, 8);
     }
 
+    // Band history is true of every track this artist ever made, so without a memory
+    // it would be told again on each one. This is what has already been said.
+    const told = (body.told ?? []).filter(Boolean).slice(0, 24);
+
     const already = (body.have ?? []).filter((n) => n?.title);
     const rejected = (body.rejected ?? []).filter(Boolean);
 
@@ -682,6 +697,11 @@ export default async function handler(req: any, res: any) {
       mentionBlock +
       lyricBlock +
       wideBlock +
+      (told.length
+        ? `ALREADY TOLD THIS LISTENER about this band, on other tracks. Do not repeat ` +
+          `any of it, and do not write a "lore" note at all unless you have something ` +
+          `else worth telling:\n${told.map((x) => `- ${x}`).join("\n")}\n\n`
+        : "") +
       (rejected.length
         ? `The reader marked these earlier notes as WRONG. Do not repeat them, and do not ` +
           `write anything that depends on them being true:\n${rejected.map((r) => `- ${r}`).join("\n")}\n\n`

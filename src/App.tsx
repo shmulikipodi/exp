@@ -109,6 +109,34 @@ const DEMO_TRACK: Playing = {
   isPlaying: true,
 };
 
+/**
+ * What has already been said about a band, kept per artist. Band history is true of
+ * every track they ever made, so without a memory the same story arrives on each one —
+ * which is the thing that makes a good fact tiresome.
+ */
+const toldKey = (artist: string) => `ln.told.${artist.trim().toLowerCase()}`;
+
+function readTold(artist: string): string[] {
+  if (!artist) return [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(toldKey(artist)) ?? "[]");
+    return Array.isArray(raw) ? raw.slice(0, 24) : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberTold(artist: string, notes: { kind: string; title: string; body: string }[]) {
+  const fresh = notes.filter((n) => n.kind === "lore").map((n) => `${n.title}: ${n.body}`);
+  if (!artist || fresh.length === 0) return;
+  const merged = [...new Set([...readTold(artist), ...fresh])].slice(-24);
+  try {
+    localStorage.setItem(toldKey(artist), JSON.stringify(merged));
+  } catch {
+    /* a full store is not worth failing over */
+  }
+}
+
 async function post<T>(payload: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
   const res = await fetch("/api/notes", {
     method: "POST",
@@ -461,6 +489,7 @@ export default function App() {
         copyrights: extra.copyrights,
         recent: [`${playing.artists.join(", ")} — ${playing.title}`, ...history.current].slice(0, 5),
         lang,
+        told: readTold(up.artists[0] ?? ""),
         keys: liveKeys(),
       }).catch(() => null);
 
@@ -575,6 +604,7 @@ export default function App() {
         recent,
         lang,
         wide,
+        told: readTold(playing.artists[0] ?? ""),
         keys: liveKeys(),
       }, abort.signal);
     })()
@@ -586,6 +616,7 @@ export default function App() {
         if (!fresh) return;
         // saveNotes awaits the store opening before it touches the index, so reading
         // the count on the next line always saw the length from before the save.
+        rememberTold(playing.artists[0] ?? "", data.notes ?? []);
         saveNotes(
           {
             id: playing.id,
