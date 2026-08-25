@@ -47,7 +47,7 @@ export function LyricLines({
         // fall away faster — the same way you read ahead of a singer, not behind.
         const from = i - active;
         const d = active < 0 ? 0 : Math.min(7, from >= 0 ? from : -from * 1.8);
-        const state = active < 0 ? "" : i === active ? " now" : i < active ? " past" : "";
+        const state = active < 0 ? "" : i === active ? " now" : i < active ? " sung" : "";
         return (
           <p
             key={i}

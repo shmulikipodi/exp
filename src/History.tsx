@@ -23,7 +23,7 @@ export function History({
 
   return (
     <div className="sheet" role="dialog" aria-modal="true">
-      <div className="panel">
+      <div className="panel history">
         <h2>{t.historyTitle}</h2>
 
         {entries.length === 0 ? (
