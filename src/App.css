@@ -590,17 +590,153 @@ button.ghost:hover { color: var(--dim); background: none; }
 }
 .rail-body::-webkit-scrollbar { display: none; }
 
-/* lyrics */
-.rail-line {
-  margin: 0 0 12px;
-  font: 16px/1.45 var(--serif);
-  font-weight: var(--body-weight);
-  color: var(--faint);
-  opacity: 0.5;
-  transition: color 0.35s, opacity 0.35s;
+/* ---------- lyrics, the way a phone shows them ----------
+   One line in focus and everything around it out of focus — not dimmed, actually
+   blurred, so the eye has nowhere else to land. Behind the words: the sleeve's own
+   colours, three or four of them, drifting past each other. */
+.lyrics-part { position: relative; isolation: isolate; overflow: clip; }
+
+.wash {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: clip;
+  background: #0b0a09;
 }
-.rail-line.past { opacity: 0.28; }
-.rail-line.now { color: var(--accent); opacity: 1; }
+
+/* The photograph underneath, blurred past recognition. Gradients alone come out flat;
+   a real sleeve has grain and gradation that this puts back. */
+.wash-art {
+  position: absolute;
+  inset: -20%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(60px) saturate(1.8);
+  opacity: 0.5;
+  transform: scale(1.15);
+  transition: background-image 0.8s ease;
+}
+
+/* Each colour gets a soft field of its own, moving slowly enough that you notice it
+   only if you look. Screen blending keeps them lighting each other rather than
+   painting over each other, which is the difference between light and paint. */
+.wash-blob {
+  position: absolute;
+  width: 95%;
+  height: 70%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, hsl(var(--c) / 0.85), hsl(var(--c) / 0) 100%);
+  mix-blend-mode: screen;
+  filter: blur(26px);
+  will-change: transform;
+  animation: drift calc(30s + var(--i) * 7s) ease-in-out infinite alternate;
+  animation-delay: calc(var(--i) * -6s);
+}
+.wash-blob:nth-child(2) { inset-block-start: -12%; inset-inline-start: -22%; }
+.wash-blob:nth-child(3) { inset-block-start: 18%;  inset-inline-start: 24%; }
+.wash-blob:nth-child(4) { inset-block-start: 46%;  inset-inline-start: -18%; }
+.wash-blob:nth-child(5) { inset-block-start: 62%;  inset-inline-start: 20%; }
+
+@keyframes drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(6%, -7%, 0) scale(1.18); }
+  to   { transform: translate3d(-8%, 6%, 0) scale(1.05); }
+}
+
+/* Some sleeves are pale, and pale colours are not a background you can read on. The
+   veil buys the contrast back without flattening the colour underneath it. */
+.wash-veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(11,10,9,0.42) 0%, rgba(11,10,9,0.30) 45%, rgba(11,10,9,0.62) 100%);
+}
+
+.lyrics-part .rail-body { padding-inline-end: 3vw; }
+.rail-expand { margin-inline-start: auto; font-size: 13px; opacity: 0.75; }
+.rail-expand:hover { opacity: 1; }
+
+.lyric-line {
+  margin: 0 0 var(--lyric-gap, 16px);
+  font: var(--display-weight, 700) 24px/1.28 var(--display);
+  letter-spacing: -0.02em;
+  color: #f3ede3;
+  opacity: calc(1 - var(--d, 0) * 0.13);
+  filter: blur(calc(var(--d, 0) * 1.15px));
+  transform-origin: left center;
+  transition: opacity 0.4s ease, filter 0.4s ease, color 0.4s ease, transform 0.4s ease;
+  will-change: filter, opacity;
+}
+[dir="rtl"] .lyric-line { transform-origin: right center; }
+.lyric-line.seekable { cursor: pointer; }
+
+/* Sung already: further back than the lines still coming, the way the eye treats them. */
+.lyric-line.past { opacity: calc(0.72 - var(--d, 0) * 0.11); }
+
+.lyric-line.now {
+  color: #fff;
+  opacity: 1;
+  filter: none;
+  transform: scale(1.03);
+  text-shadow: 0 2px 24px hsl(var(--h) 70% 60% / 0.35);
+}
+.lyric-line.plain { white-space: pre-wrap; opacity: 0.85; filter: none; font-size: 20px; }
+
+/* A four-line lyric on a tall screen looks lost; a hundred-line one needs the room.
+   Nothing to do about that in CSS, but the first and last lines can at least scroll
+   to the middle, which is where the focus is. */
+.lyrics-part .rail-body::before,
+.lyrics-part .rail-body::after {
+  content: "";
+  display: block;
+  height: 38%;
+}
+
+/* ---------- the same thing, given the whole window ---------- */
+.lyric-full {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+  overflow: clip;
+}
+.lyric-full-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 22px clamp(24px, 6vw, 80px) 0;
+}
+.lyric-full-head div { display: flex; flex-direction: column; gap: 2px; }
+.lyric-full-head b { font: 600 15px/1.3 var(--sans); color: #fff; }
+.lyric-full-head span { font: 13px/1.3 var(--sans); color: rgba(243,237,227,0.62); }
+.lyric-full-head button {
+  margin-inline-start: auto;
+  font-size: 22px;
+  line-height: 1;
+  color: rgba(243,237,227,0.7);
+}
+.lyric-full-head button:hover { color: #fff; }
+
+.lyric-full-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 0 clamp(24px, 6vw, 80px);
+  --lyric-gap: clamp(14px, 2.4vh, 26px);
+}
+.lyric-full-body::-webkit-scrollbar { display: none; }
+.lyric-full-body::before,
+.lyric-full-body::after { content: ""; display: block; height: 42%; }
+.lyric-full .lyric-line { font-size: clamp(26px, 3.6vw, 46px); }
+.lyric-credit { padding: 0 clamp(24px, 6vw, 80px) 18px; margin: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lyric-line { filter: none; transition: none; }
+  .lyric-line.now { text-shadow: none; transform: none; }
+  .wash-blob { animation: none; }
+}
 
 /* pictures — the artist, the sleeve, the thumbnails beside every row */
 .rail-hero {
@@ -1092,29 +1228,6 @@ footer { max-width: 30em; margin-top: 48px; padding-top: 24px; border-top: 1px s
   color: var(--faint);
 }
 .from-history button { display: block; margin-top: 3px; font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--accent); }
-
-/* ---------- lyrics ---------- */
-
-.panel.lyrics { max-width: 540px; }
-.lines {
-  max-height: 58vh;
-  overflow-y: auto;
-  padding: 6px 2px;
-  scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 8%, #000 92%, transparent 100%);
-  mask-image: linear-gradient(180deg, transparent 0, #000 8%, #000 92%, transparent 100%);
-}
-.lines::-webkit-scrollbar { display: none; }
-
-.line {
-  margin: 0 0 10px;
-  font: 17px/1.5 var(--serif);
-  color: var(--faint);
-  transition: color 0.3s, opacity 0.3s;
-}
-/* The line being sung, in the same register the notes use for what has arrived. */
-.line.now { color: var(--ink); }
-.line.plain { white-space: pre-wrap; color: var(--dim); }
 
 .slots { list-style: none; margin: 14px 0 0; padding: 0; font: 12px var(--mono); }
 .slots li { padding: 5px 0; border-top: 1px solid var(--line); }

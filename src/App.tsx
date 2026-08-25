@@ -1110,8 +1110,10 @@ export default function App() {
           title={track.title}
           artist={track.artists[0] ?? ""}
           album={track.album}
+          art={track.art}
           durationMs={track.durationMs}
           progressMs={progress}
+          onSeek={(ms) => run(() => seek(ms), () => setProgress(ms))}
           onClose={() => setShowLyrics(false)}
         />
       )}
@@ -1568,6 +1570,7 @@ export default function App() {
               title={track.title}
               artist={track.artists[0] ?? ""}
               album={track.album}
+              art={track.art}
               albumId={track.albumId}
               artistId={track.artistId}
               trackId={track.id}
@@ -1581,6 +1584,8 @@ export default function App() {
                 (activeNotes?.answers ?? []).find((a) => a.about === "topic:album")?.body
               }
               onAsk={askTopic}
+              onSeek={(ms) => run(() => seek(ms), () => setProgress(ms))}
+              onExpand={() => setShowLyrics(true)}
             />
           )}
           </div>

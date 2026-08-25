@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Strings } from "./i18n";
+import { Wash } from "./Wash";
+import { LyricLines, type Line } from "./LyricLines";
+import { paletteFrom, type Swatch } from "./palette";
 import {
   albumProfile,
   artistProfile,
@@ -11,8 +14,6 @@ import {
 } from "./spotify";
 
 export type RailMode = "lyrics" | "queue" | "artist" | "album";
-
-type Line = { at: number; text: string };
 
 const mmss = (ms: number) => {
   const s = Math.max(0, Math.round(ms / 1000));
@@ -31,6 +32,7 @@ export function Rail({
   title,
   artist,
   album,
+  art,
   albumId,
   artistId,
   trackId,
@@ -40,6 +42,8 @@ export function Rail({
   artistText,
   albumText,
   onAsk,
+  onSeek,
+  onExpand,
 }: {
   t: Strings;
   modes: RailMode[];
@@ -47,6 +51,7 @@ export function Rail({
   title: string;
   artist: string;
   album: string;
+  art?: string;
   albumId: string;
   artistId: string;
   trackId: string;
@@ -56,8 +61,11 @@ export function Rail({
   artistText?: string;
   albumText?: string;
   onAsk: (topic: "artist" | "album") => void;
+  onSeek: (ms: number) => void;
+  onExpand: () => void;
 }) {
   const [lines, setLines] = useState<Line[] | null>(null);
+  const [palette, setPalette] = useState<Swatch[]>([]);
   const [queue, setQueue] = useState<QueueItem[] | null>(null);
   const [who, setWho] = useState<ArtistProfile | null>(null);
   const [record, setRecord] = useState<AlbumProfile | null>(null);
@@ -79,6 +87,17 @@ export function Rail({
       alive = false;
     };
   }, [modes.includes("lyrics"), title, artist, album, durationMs]);
+
+  // The sleeve's own colours, read once per cover. Reused for every open section, so
+  // the panel keeps the record's palette even when the words aren't showing.
+  useEffect(() => {
+    if (!art) return setPalette([]);
+    let alive = true;
+    paletteFrom(art).then((p) => alive && setPalette(p));
+    return () => {
+      alive = false;
+    };
+  }, [art]);
 
   useEffect(() => {
     if (!modes.includes("queue")) return;
@@ -137,10 +156,18 @@ export function Rail({
   };
 
   /** One open section. Several of them share the column's height between them. */
-  const section = (id: RailMode, body: ReactNode) => (
-    <section className="rail-part" key={id}>
+  const section = (
+    id: RailMode,
+    body: ReactNode,
+    extra = "",
+    behind?: ReactNode,
+    tools?: ReactNode,
+  ) => (
+    <section className={extra ? `rail-part ${extra}` : "rail-part"} key={id}>
+      {behind}
       <header>
         <span>{label[id]}</span>
+        {tools}
         <button title={t.railClose} aria-label={t.railClose} onClick={() => toggle(id)}>
           ×
         </button>
@@ -158,22 +185,26 @@ export function Rail({
       {modes.includes("lyrics") &&
         section(
           "lyrics",
-          lines === null ? (
-            <p className="loading">{t.loading}</p>
-          ) : lines.length === 0 ? (
-            <p className="help">{t.lyricsNone}</p>
-          ) : (
-            lines.map((line, i) => (
-              <p
-                key={i}
-                data-l={i}
-                dir="auto"
-                className={i === active ? "rail-line now" : i < active ? "rail-line past" : "rail-line"}
-              >
-                {line.text || "·"}
-              </p>
-            ))
-          ),
+          <>
+            {lines === null ? (
+              <p className="loading">{t.loading}</p>
+            ) : lines.length === 0 ? (
+              <p className="help">{t.lyricsNone}</p>
+            ) : (
+              <LyricLines lines={lines} active={active} onSeek={onSeek} />
+            )}
+          </>,
+          "lyrics-part",
+          // Sits outside the scrolling body so the colour stays put while the lines move.
+          <Wash art={art} colors={palette} />,
+          <button
+            className="rail-expand"
+            title={t.railFull}
+            aria-label={t.railFull}
+            onClick={onExpand}
+          >
+            ⤢
+          </button>,
         )}
 
       {modes.includes("queue") &&
