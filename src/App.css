@@ -199,6 +199,12 @@ button.ghost:hover { color: var(--dim); background: none; }
   min-width: 0;
 }
 
+/* With a third column open the sleeve cannot also take 620px, or the notes are left
+   with nothing to read in. It only yields when the panel is really there. */
+@media (min-width: 1180px) and (max-width: 1560px) {
+  .stage:has(.rail) .sleeve { max-width: 460px; }
+}
+
 /* A flex column whose content overflows shrinks its items, and a 6px bar shrinks to
    exactly nothing — which is how the progress line disappeared when the transport and
    the larger type pushed the sleeve past the viewport. Nothing here may shrink; the
@@ -426,11 +432,13 @@ button.ghost:hover { color: var(--dim); background: none; }
    behind the panel button, which opens the older overlay instead. */
 .rail { display: none; }
 
-@media (min-width: 1500px) {
+/* 1500px was a laptop too far: a 1440 or 1280 screen got nothing but the old overlay,
+   which is the whole panel invisible on the most common sizes there are. */
+@media (min-width: 1180px) {
   .rail {
     display: flex;
     flex-direction: column;
-    flex: 0 0 clamp(300px, 23vw, 420px);
+    flex: 0 0 clamp(272px, 22vw, 420px);
     min-width: 0;
     height: 100dvh;
     padding: 26px 3vw 0 0;
