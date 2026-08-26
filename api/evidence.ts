@@ -3,6 +3,8 @@
 // carries the story. Both are fetched server-side and handed to the model as
 // documents, so the notes don't depend on search-grounding quota.
 
+import { asEvidence, story as geniusStory } from "./genius.js";
+
 const UA = "exp/1.0 ( https://github.com/ )";
 
 /**
@@ -509,7 +511,7 @@ export async function gather(
   const empty = { text: "", sources: [] as [string, string][] };
   // Each source gets its own clock. Racing them as a group meant one slow catalogue
   // lookup threw away an encyclopedia article that had already arrived.
-  const [mb, band, press, ...articles] = await Promise.all([
+  const [mb, band, press, genius, ...articles] = await Promise.all([
     withBudget(musicbrainz(title, artist, isrc, durationMs).catch(() => empty), empty),
     // A small, story-filtered slice of the band's own article. What happened to the
     // people who made a record is often the most remarkable thing about it, and a song
@@ -520,6 +522,13 @@ export async function gather(
     // What the song has been doing lately, which no encyclopedia is fast enough to know.
     // Never waited for; see news() for why.
     news(title, artist),
+    // The only source that is about what the song means rather than how it was made.
+    withBudget(
+      geniusStory(title, artist)
+        .then((s) => ({ text: asEvidence(s), sources: s.found ? ([[s.url, "Genius"]] as [string, string][]) : [] }))
+        .catch(() => empty),
+      empty,
+    ),
     // Every language edition worth asking, at once.
     ...wikis.map((lang) =>
       withBudget(wikipedia(title, artist, album, lang).catch(() => empty), empty),
@@ -543,10 +552,10 @@ export async function gather(
   const value: Evidence = {
     // press has no sources of its own — headlines are a pointer, not a citation — so it
     // is joined in by hand rather than going through the de-duplicating filter above.
-    text: [mb.text, ...kept.map((a) => a.text), band.text, press.text]
+    text: [genius.text, mb.text, ...kept.map((a) => a.text), band.text, press.text]
       .filter(Boolean)
       .join("\n\n---\n\n"),
-    sources: [...mb.sources, ...kept.flatMap((a) => a.sources), ...band.sources],
+    sources: [...genius.sources, ...mb.sources, ...kept.flatMap((a) => a.sources), ...band.sources],
   };
 
   evidenceCache.set(key, { at: Date.now(), value });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { covers } from "./lineage.js";
+import { covers, once } from "./lineage.js";
 
 const rel = (artist: string, title: string, attributes: string[] = [], begin = "") => ({
   "target-type": "recording",
@@ -66,5 +66,32 @@ describe("covers", () => {
       "Smells Like Teen Spirit",
     );
     expect(list.map((c) => c.artist)).toEqual(["Dated", "Undated"]);
+  });
+});
+
+describe("once", () => {
+  const link = (kind: string, title: string, artist: string) => ({ kind, title, artist });
+
+  it("shows a song once, under the first relationship it had", () => {
+    // Jay-Z's Holy Grail both samples this song and interpolates it. Genius lists it
+    // twice; a column that does the same reads like a bug.
+    const rows = once(
+      [
+        link("sampled in", "Holy Grail", "JAY-Z"),
+        link("interpolated by", "Holy Grail", "JAY-Z"),
+        link("interpolated by", "Song 2", "Blur"),
+      ],
+      6,
+    );
+    expect(rows.map((r) => r.title)).toEqual(["Holy Grail", "Song 2"]);
+    expect(rows[0].kind).toBe("sampled in");
+  });
+
+  it("stops at the limit", () => {
+    const rows = once(
+      Array.from({ length: 12 }, (_, i) => link("covered by", `Song ${i}`, `Artist ${i}`)),
+      6,
+    );
+    expect(rows).toHaveLength(6);
   });
 });

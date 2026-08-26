@@ -9,6 +9,7 @@ type Tree = {
   artist: string;
   year: string;
   label: string;
+  about: string;
   from: Related[];
   into: Related[];
   covers: Cover[];
@@ -24,6 +25,7 @@ const NOTHING: Tree = {
   artist: "",
   year: "",
   label: "",
+  about: "",
   from: [],
   into: [],
   covers: [],
@@ -98,6 +100,8 @@ export function Lineage({
           {tree?.label && <span> · {tree.label}</span>}
         </p>
       </header>
+
+      {tree?.about && <p className="tree-about">{tree.about}</p>}
 
       {!tree && <p className="loading">{t.loading}</p>}
       {tree && !tree.found && <p className="help">{t.treeNone}</p>}

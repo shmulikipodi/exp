@@ -316,6 +316,13 @@ button.ghost:hover { color: var(--dim); background: none; }
 .lineage .artist { margin: 0 0 3px; font: 15px var(--sans); color: var(--dim); }
 .lineage .album { margin: 0; font: 12px var(--mono); color: var(--faint); }
 
+.tree-about {
+  margin: 0 0 4px;
+  font: 15px/1.5 var(--serif);
+  color: var(--dim);
+  text-wrap: pretty;
+}
+
 .tree-head {
   display: flex;
   align-items: baseline;

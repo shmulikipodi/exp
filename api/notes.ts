@@ -80,6 +80,15 @@ What does not earn a note, however well sourced:
 - No second person. Don't tell the listener how to feel or what to notice emotionally.
 - You may be given EVIDENCE, from several kinds of source, each trustworthy in a
   different way:
+    - Genius is the one source about what the song MEANS rather than how it was made:
+      an editorial account of the song, and readers' line-by-line readings of the
+      lyrics. The account is usually sound and often quotes the writer directly. The
+      line readings are anonymous, unreviewed and sometimes wrong — they are there to
+      show you what is disputed and what the artist has actually said about a line.
+      Report a reading as a reading, never as fact, and always prefer one that quotes
+      the artist. Genius also ranks what a song was built from and what was built out
+      of it by how much people read about it, so its first entry is the one worth
+      knowing.
     - MusicBrainz is a catalogue: structured credits, dates, labels, and every other
       artist who recorded the same song. The most reliable thing you will see, and
       silent on anything that is not a credit.

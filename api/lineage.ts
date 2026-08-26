@@ -7,6 +7,7 @@
 // out of it. Smells Like Teen Spirit has 211 other artists on its work.
 
 import { clean, json, sameSong } from "./evidence.js";
+import { story as geniusStory } from "./genius.js";
 
 const MB = "https://musicbrainz.org/ws/2";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -26,6 +27,8 @@ export type Tree = {
   artist: string;
   year: string;
   label: string;
+  /** What the song is about, in a sentence or two. */
+  about: string;
   /** What this recording was made out of: what it samples, what it is a cover of. */
   from: Related[];
   /** What was made out of it. */
@@ -36,18 +39,6 @@ export type Tree = {
   source: string;
 };
 
-const EMPTY: Tree = {
-  found: false,
-  title: "",
-  artist: "",
-  year: "",
-  label: "",
-  from: [],
-  into: [],
-  covers: [],
-  coverCount: 0,
-  source: "",
-};
 
 const cache = new Map<string, { at: number; value: Tree }>();
 const TTL_MS = 6 * 60 * 60_000;
@@ -114,11 +105,46 @@ export function covers(relations: any[], performer: string, title: string): Cove
     .map(({ rank: _rank, ...cover }) => cover);
 }
 
-export async function songTree(title: string, artist: string, isrc = ""): Promise<Tree> {
-  const key = `${isrc}|${title}|${artist}`.toLowerCase();
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
+const asRelated = (l: { kind: string; title: string; artist: string }): Related => ({
+  kind: l.kind,
+  title: l.title,
+  artist: l.artist,
+});
 
+/** Jay-Z's Holy Grail both samples this and interpolates it. It is still one row. */
+export function once(links: Related[], limit: number): Related[] {
+  const seen = new Set<string>();
+  const out: Related[] = [];
+  for (const l of links) {
+    const key = `${l.artist}|${l.title}`.toLowerCase();
+    if (!l.title || seen.has(key)) continue;
+    seen.add(key);
+    out.push(l);
+    if (out.length === limit) break;
+  }
+  return out;
+}
+
+/** The opening of the Genius page — enough to say what the song is, not a whole essay. */
+function firstLines(about: string): string {
+  const stop = about.indexOf("\n\n");
+  return (stop > 80 ? about.slice(0, stop) : about).slice(0, 320).trim();
+}
+
+type Catalogue = { title: string; artist: string; year: string; label: string; relations: any[]; covers: Cover[]; coverCount: number; id: string };
+
+const EMPTY_CAT: Catalogue = {
+  title: "",
+  artist: "",
+  year: "",
+  label: "",
+  relations: [],
+  covers: [],
+  coverCount: 0,
+  id: "",
+};
+
+async function fetchCatalogue(title: string, artist: string, isrc: string): Promise<Catalogue> {
   const inc = "work-rels+releases+artist-credits+recording-rels";
   let rec: any = null;
 
@@ -137,11 +163,7 @@ export async function songTree(title: string, artist: string, isrc = ""): Promis
       rec = await json(`${MB}/recording/${found.id}?inc=${inc}&fmt=json`);
     }
   }
-
-  if (!rec?.id) {
-    cache.set(key, { at: Date.now(), value: EMPTY });
-    return EMPTY;
-  }
+  if (!rec?.id) return EMPTY_CAT;
 
   const performer = rec["artist-credit"]?.[0]?.name ?? artist;
   const dates = (rec.releases ?? []).map((r: any) => r.date).filter(Boolean).sort();
@@ -154,9 +176,7 @@ export async function songTree(title: string, artist: string, isrc = ""): Promis
   let total = 0;
   if (workId) {
     await sleep(600);
-    const work = await json(
-      `${MB}/work/${workId}?inc=recording-rels+artist-credits&fmt=json`,
-    );
+    const work = await json(`${MB}/work/${workId}?inc=recording-rels+artist-credits&fmt=json`);
     const rels = (work?.relations ?? []).filter((r: any) => r["target-type"] === "recording");
     sung = covers(rels, performer, rec.title);
     total = new Set(
@@ -166,21 +186,74 @@ export async function songTree(title: string, artist: string, isrc = ""): Promis
     ).size;
   }
 
-  const value: Tree = {
-    found: true,
+  return {
     title: rec.title,
     artist: performer,
     year: String(dates[0] ?? "").slice(0, 4),
     label,
-    from: related(rec.relations, true),
-    into: related(rec.relations, false),
+    relations: rec.relations ?? [],
     covers: sung,
     coverCount: total,
-    source: `https://musicbrainz.org/recording/${rec.id}`,
+    id: rec.id,
+  };
+}
+
+// Three round-trips with a second of deliberate silence between them, against a host
+// that 503s anything faster. Seventeen seconds is not a column you can put on a screen,
+// so it is never waited for: the page comes back with the part Genius knows, and the
+// catalogue's half is there the next time the track comes round.
+const catCache = new Map<string, Catalogue>();
+const catPending = new Set<string>();
+
+function catalogue(title: string, artist: string, isrc: string): Catalogue {
+  const key = `${isrc}|${title}|${artist}`.toLowerCase();
+  const hit = catCache.get(key);
+  if (hit) return hit;
+
+  if (!catPending.has(key)) {
+    catPending.add(key);
+    const remember = (value: Catalogue) => {
+      catCache.set(key, value);
+      catPending.delete(key);
+      if (catCache.size > 60) catCache.delete(catCache.keys().next().value as string);
+    };
+    fetchCatalogue(title, artist, isrc).then(remember, () => remember(EMPTY_CAT));
+  }
+  return EMPTY_CAT;
+}
+
+export async function songTree(title: string, artist: string, isrc = ""): Promise<Tree> {
+  const key = `${isrc}|${title}|${artist}`.toLowerCase();
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
+
+  const page = await geniusStory(title, artist).catch(() => null);
+  const cat = catalogue(title, artist, isrc);
+  const about = page?.about ? firstLines(page.about) : "";
+
+  const from = once([...(page?.from ?? []).map(asRelated), ...related(cat.relations, true)], 6);
+  const into = once([...(page?.into ?? []).map(asRelated), ...related(cat.relations, false)], 6);
+
+  const value: Tree = {
+    found: Boolean(about) || from.length > 0 || into.length > 0 || cat.covers.length > 0,
+    title: cat.title || title,
+    artist: cat.artist || artist,
+    year: cat.year,
+    label: cat.label,
+    about,
+    from,
+    into,
+    covers: cat.covers,
+    coverCount: cat.coverCount,
+    source: cat.id ? `https://musicbrainz.org/recording/${cat.id}` : (page?.url ?? ""),
   };
 
-  cache.set(key, { at: Date.now(), value });
-  if (cache.size > 60) cache.delete(cache.keys().next().value as string);
+  // Only worth remembering once the slow half has arrived; until then the next request
+  // should look again and pick it up.
+  if (cat.id) {
+    cache.set(key, { at: Date.now(), value });
+    if (cache.size > 60) cache.delete(cache.keys().next().value as string);
+  }
   return value;
 }
 
