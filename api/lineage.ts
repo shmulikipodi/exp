@@ -199,27 +199,28 @@ async function fetchCatalogue(title: string, artist: string, isrc: string): Prom
 }
 
 // Three round-trips with a second of deliberate silence between them, against a host
-// that 503s anything faster. Seventeen seconds is not a column you can put on a screen,
-// so it is never waited for: the page comes back with the part Genius knows, and the
-// catalogue's half is there the next time the track comes round.
+// that 503s anything faster. It was fired and left to land on its own, which works on a
+// laptop and not at all here: a serverless instance is frozen the moment it answers, so
+// the promise never resolved and the column stayed empty forever. So it is waited for,
+// on a clock — the catalogue gets eight seconds to be useful, and the page is drawn
+// with or without it. Once it does arrive the answer is kept for six hours.
 const catCache = new Map<string, Catalogue>();
-const catPending = new Set<string>();
+const CAT_MS = 8000;
 
-function catalogue(title: string, artist: string, isrc: string): Catalogue {
+async function catalogue(title: string, artist: string, isrc: string): Promise<Catalogue> {
   const key = `${isrc}|${title}|${artist}`.toLowerCase();
   const hit = catCache.get(key);
   if (hit) return hit;
 
-  if (!catPending.has(key)) {
-    catPending.add(key);
-    const remember = (value: Catalogue) => {
-      catCache.set(key, value);
-      catPending.delete(key);
-      if (catCache.size > 60) catCache.delete(catCache.keys().next().value as string);
-    };
-    fetchCatalogue(title, artist, isrc).then(remember, () => remember(EMPTY_CAT));
-  }
-  return EMPTY_CAT;
+  const done = await Promise.race([
+    fetchCatalogue(title, artist, isrc).catch(() => EMPTY_CAT),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), CAT_MS)),
+  ]);
+  if (!done) return EMPTY_CAT;
+
+  catCache.set(key, done);
+  if (catCache.size > 60) catCache.delete(catCache.keys().next().value as string);
+  return done;
 }
 
 export async function songTree(title: string, artist: string, isrc = ""): Promise<Tree> {
@@ -227,8 +228,11 @@ export async function songTree(title: string, artist: string, isrc = ""): Promis
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
 
-  const page = await geniusStory(title, artist).catch(() => null);
-  const cat = catalogue(title, artist, isrc);
+  // Both at once: Genius answers in under a second, the catalogue takes most of eight.
+  const [page, cat] = await Promise.all([
+    geniusStory(title, artist).catch(() => null),
+    catalogue(title, artist, isrc),
+  ]);
   const about = page?.about ? firstLines(page.about) : "";
 
   const from = once([...(page?.from ?? []).map(asRelated), ...related(cat.relations, true)], 6);
