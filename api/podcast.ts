@@ -107,6 +107,7 @@ const TRUSTED = [
   "sound opinions",
   // One song per episode, or one artist taken apart properly.
   "one song",
+  "שיר אחד one song",
   "60 songs that explain the",
   "heat rocks",
   "and the writer is",
@@ -121,6 +122,9 @@ const TRUSTED = [
   "in the studio with redbeard",
   "vinyl emergency",
   "album mode",
+  // Hebrew. Both do exactly what this app does: one song, taken apart, per episode.
+  "שיר אחד",
+  "האזנה מודרכת",
 ];
 
 const ITUNES = "https://itunes.apple.com/search";
@@ -129,9 +133,18 @@ export type Mention = { show: string; title: string; link: string; summary: stri
 
 const mentionCache = new Map<string, { at: number; value: Mention[] }>();
 
-function trusted(show: string): boolean {
-  const s = show.toLowerCase();
-  return TRUSTED.some((name) => s.includes(name));
+// Shows whose names begin with a trusted one but are not it.
+const IMPOSTORS = ["one song from age"];
+
+/**
+ * The name has to be the start of the show's title, not merely somewhere inside it.
+ * A substring test let "Best of Song Exploder Reactions" through as Song Exploder, and
+ * a feed can call itself anything.
+ */
+export function trusted(show: string): boolean {
+  const s = show.toLowerCase().trim();
+  if (IMPOSTORS.some((bad) => s.startsWith(bad))) return false;
+  return TRUSTED.some((name) => s === name || s.startsWith(`${name} `) || s.startsWith(`${name}:`));
 }
 
 /** Does this episode actually concern the track, or merely mention the artist? */

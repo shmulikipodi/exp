@@ -1,5 +1,4 @@
 import type { Strings } from "./i18n";
-import type { RailMode } from "./Rail";
 
 /**
  * Everything that used to sit in a row across the top of the artwork. Five buttons
@@ -14,8 +13,6 @@ export function Settings({
   setTypeSet,
   zoom,
   setZoom,
-  rails,
-  toggleRail,
   openKeys,
   openHistory,
   historyCount,
@@ -28,8 +25,6 @@ export function Settings({
   setTypeSet: (v: string) => void;
   zoom: number;
   setZoom: (v: number) => void;
-  rails: RailMode[];
-  toggleRail: (m: RailMode) => void;
   openKeys: () => void;
   openHistory: () => void;
   historyCount: number;
@@ -41,31 +36,10 @@ export function Settings({
     ["c", "Archivo"],
     ["d", "Bricolage"],
   ];
-  const panels: [RailMode, string][] = [
-    ["lyrics", t.railLyrics],
-    ["queue", t.railQueue],
-    ["artist", t.railArtist],
-    ["album", t.railAlbum],
-  ];
-
   return (
     <div className="sheet" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="panel settings" onClick={(e) => e.stopPropagation()}>
         <h2>{t.settings}</h2>
-
-        <p className="rail-section">{t.settingsPanels}</p>
-        <div className="chips">
-          {panels.map(([id, name]) => (
-            <button
-              key={id}
-              className={rails.includes(id) ? "on" : ""}
-              onClick={() => toggleRail(id)}
-            >
-              {name}
-            </button>
-          ))}
-        </div>
-        <p className="help">{t.settingsPanelsHint}</p>
 
         <p className="rail-section">{t.settingsZoom}</p>
         <div className="chips">

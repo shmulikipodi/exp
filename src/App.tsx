@@ -30,6 +30,7 @@ import { History } from "./History";
 import { Linked } from "./Linked";
 import { Lyrics } from "./Lyrics";
 import { Wash } from "./Wash";
+import { RAIL_ICONS, RAIL_ORDER } from "./RailIcons";
 import { Rail, type RailMode } from "./Rail";
 import { Settings } from "./Settings";
 import {
@@ -1091,8 +1092,6 @@ export default function App() {
           setTypeSet={setTypeSet}
           zoom={zoom}
           setZoom={setZoom}
-          rails={rails}
-          toggleRail={toggleRail}
           openKeys={() => {
             setShowSettings(false);
             setShowKeys(true);
@@ -1688,6 +1687,24 @@ export default function App() {
 
             <div className="pb-end">
               {upNext && <span className="pb-next">{t.upNext} {upNext.label}</span>}
+              <div className="pb-panels">
+                {RAIL_ORDER.map((id) => {
+                  const open = rails.includes(id);
+                  const label = { lyrics: t.railLyrics, queue: t.railQueue, artist: t.railArtist, album: t.railAlbum }[id];
+                  return (
+                    <button
+                      key={id}
+                      className={open ? "on" : ""}
+                      aria-pressed={open}
+                      title={label}
+                      aria-label={label}
+                      onClick={() => toggleRail(id)}
+                    >
+                      {RAIL_ICONS[id]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 

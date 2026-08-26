@@ -167,7 +167,43 @@
 .pb-time { font: 10px var(--mono); color: var(--faint); flex-shrink: 0; min-width: 34px; }
 .pb-line .pb-time:last-child { text-align: end; }
 
-.pb-end { display: flex; justify-content: flex-end; min-width: 0; }
+.pb-end { display: flex; align-items: center; justify-content: flex-end; gap: 14px; min-width: 0; }
+
+/* What the third column is showing, as four marks. Lit means open — the mark is both
+   the switch and the answer to "what have I got open", which two separate places for
+   the same thing never manage. */
+.pb-panels { display: none; align-items: center; gap: 2px; flex-shrink: 0; }
+.pb-panels button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--faint);
+  transition: color 0.15s, background 0.15s;
+}
+.pb-panels button:hover { color: var(--ink); background: rgba(243,237,227,0.08); }
+.pb-panels button.on { color: var(--accent); }
+/* The dot underneath is what Spotify uses, and it survives a colour the album picked
+   that happens to sit close to the unlit grey. */
+.pb-panels button.on::after {
+  content: "";
+  position: absolute;
+  margin-top: 25px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.pb-panels button { position: relative; }
+
+/* The panel only exists at this width, so neither do its switches. */
+@media (min-width: 1180px) {
+  .pb-panels { display: flex; }
+}
 .pb-next {
   font: 11px var(--mono);
   color: var(--faint);
