@@ -62,10 +62,14 @@ type Answer = {
   body: string;
   sources?: [string, string][];
 };
+/** How much to write. Not which sources to read — how much of them is worth saying. */
+type Depth = "brief" | "normal" | "deep";
+
 type Notes = {
   headline: string;
   notes: Note[];
   thread: string | null;
+  questions?: string[];
   confidence: "high" | "low";
   sources: [string, string][];
   live: boolean;
@@ -200,7 +204,9 @@ export default function App() {
   const [showKeys, setShowKeys] = useState(false);
   const [reload, setReload] = useState(0);
   const [keyCount, setKeyCount] = useState(liveKeys().length);
-  const [wide, setWide] = useState(() => localStorage.getItem("ln.wide") === "1");
+  const [depth, setDepth] = useState<Depth>(
+    () => (localStorage.getItem("ln.depth") as Depth) ?? "normal",
+  );
   // The phone keeps the sleeve: there are no columns there, the artwork is the whole
   // first screen and it collapses into a bar as you scroll. Only the desktop's first
   // column was a picture you could already see somewhere else.
@@ -646,7 +652,7 @@ export default function App() {
         copyrights: extra.copyrights,
         recent,
         lang,
-        wide,
+        depth,
         told: readTold(playing.artists[0] ?? ""),
         keys: liveKeys(),
       }, abort.signal);
@@ -689,7 +695,7 @@ export default function App() {
       // Nothing was written for this track, so it must not look as though it was.
       if (!settled) fetchedFor.current = "";
     };
-  }, [playing?.id, lang, reload, wide]);
+  }, [playing?.id, lang, reload, depth]);
 
   // Reading from history reuses the whole player view — same sleeve, same notes, just
   // a track that isn't playing, with everything already revealed.
@@ -898,7 +904,7 @@ export default function App() {
         focus: onlyKind,
         have: current.notes.map((n) => ({ title: n.title, body: n.body })),
         rejected: current.rejected ?? [],
-        wide,
+        depth,
         keys: liveKeys(),
       });
       const fresh = (data.notes ?? []).filter(
@@ -914,7 +920,7 @@ export default function App() {
     } finally {
       setBusy("");
     }
-  }, [current, subject, persist, targetOf, t, onlyKind, wide]);
+  }, [current, subject, persist, targetOf, t, onlyKind, depth]);
 
   // Marking a note wrong removes it and records why, so a later regeneration is told
   // not to produce it again. The record of what it got wrong is the valuable half.
@@ -1671,23 +1677,49 @@ export default function App() {
                           ? t.moreOf(t.kinds[onlyKind] ?? onlyKind)
                           : t.moreNotes}
                     </button>
-                    <button
-                      className={`toggle${wide ? " on" : ""}`}
-                      title={t.wideHint}
-                      onClick={() => {
-                        const next = !wide;
-                        setWide(next);
-                        localStorage.setItem("ln.wide", next ? "1" : "0");
-                        // The notes were written from a narrower set of sources, so they
-                        // are worth writing again.
-                        cache.current.clear();
-                        fetchedFor.current = "";
-                        setReload((r) => r + 1);
-                      }}
-                    >
-                      {wide ? t.wideOn : t.wideOff}
-                    </button>
+                    <div className="depth" role="group" title={t.depthHint}>
+                      {(["brief", "normal", "deep"] as Depth[]).map((d) => (
+                        <button
+                          key={d}
+                          className={depth === d ? "on" : ""}
+                          onClick={() => {
+                            if (d === depth) return;
+                            setDepth(d);
+                            localStorage.setItem("ln.depth", d);
+                            // The notes were written to a different measure, so they
+                            // are worth writing again.
+                            cache.current.clear();
+                            fetchedFor.current = "";
+                            setReload((r) => r + 1);
+                          }}
+                        >
+                          {t.depths[d]}
+                        </button>
+                      ))}
+                    </div>
                   </div>
+                  {/* The questions this record invites, written by the same pass that
+                      wrote the notes — so they are about this song and not about songs.
+                      Understanding is a conversation, and a blank box is a bad opening
+                      line. */}
+                  {(activeNotes.questions ?? []).length > 0 && (
+                    <div className="invites">
+                      {(activeNotes.questions ?? []).map((q) => (
+                        <button
+                          key={q}
+                          disabled={busy !== ""}
+                          onClick={() => {
+                            setAskingAbout(null);
+                            setDraftQ(q);
+                            ask(q, null);
+                          }}
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <form
                     className="ask"
                     onSubmit={(e) => {
@@ -1698,7 +1730,7 @@ export default function App() {
                   >
                     <input
                       value={askingAbout === null ? draftQ : ""}
-                      placeholder={t.askGeneral}
+                      placeholder={t.askAnything}
                       onChange={(e) => {
                         setAskingAbout(null);
                         setDraftQ(e.target.value);

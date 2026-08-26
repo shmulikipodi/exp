@@ -1088,6 +1088,43 @@ body.dragging { cursor: col-resize; user-select: none; }
   to { opacity: 1; transform: none; }
 }
 
+/* How much to write about this record. Not a filter — a different set of notes. */
+.depth { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: clip; }
+.depth button {
+  padding: 6px 12px;
+  border: none;
+  background: none;
+  font: 600 10px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.depth button:hover { color: var(--ink); background: rgba(243,237,227,0.06); }
+.depth button.on { color: #16110a; background: var(--accent); }
+
+/* What this record invites you to ask. A blank box is a bad opening line. */
+.invites { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 14px; }
+.invites button {
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  font: 13px var(--serif);
+  color: var(--dim);
+  text-align: start;
+  transition: color 0.15s, border-color 0.15s;
+}
+.invites button:hover:not(:disabled) { color: var(--ink); border-color: var(--accent-dim); }
+
+/* The conversation stays within reach: the notes are an opening answer, not the end. */
+.conversation {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding-bottom: 14px;
+  background: linear-gradient(180deg, transparent 0, var(--bg) 18%, var(--bg) 100%);
+}
+
 /* ---------- the words, with the notes standing in them ----------
    The explanation is not in a list somewhere else; it is where the thing it explains
    is. A lyric line reads like a lyric line and a note reads like a note, so the column

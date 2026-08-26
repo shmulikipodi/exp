@@ -164,9 +164,23 @@ Return ONLY a JSON object, no markdown fence:
 {
   "headline": "one sentence naming what this record actually is, the way someone who knows it would say it to a friend. Not a summary. Not praise.",
   "notes": [{ "kind": "origin", "at": null, "atBasis": null, "title": "four to seven words", "body": "one to three sentences" }],
+  "questions": ["three short questions THIS record invites and you have not already answered above — the thing a listener would actually wonder having heard it. Specific to this song, never generic. Six to ten words each."],
   "thread": "one sentence connecting this song to the listed recent tracks — a shared producer, player, sample, city, year, label or lineage. Only if a real connection exists. Otherwise null.",
   "confidence": "high" | "low"
 }`;
+
+const DEPTHS = ["brief", "normal", "deep"];
+
+/** How much to write, as an instruction rather than a number the model can drift past. */
+const HOW_MUCH: Record<string, string> = {
+  brief: `WRITE AT MOST THREE NOTES. Only the ones that would make someone put their ` +
+    `drink down. If the fourth-best thing you have is not that, it does not go in.`,
+  normal: `Write five or six notes if the record has that many worth having, fewer if ` +
+    `it does not.`,
+  deep: `Write as many notes as the evidence genuinely supports, up to twelve. The bar ` +
+    `does not move: twelve notes worth repeating, or four, but never twelve where four ` +
+    `were real and eight were filler.`,
+};
 
 /** The note kinds the prompt defines. Nothing outside this list reaches it. */
 export const KINDS = [
@@ -215,7 +229,8 @@ type Body = {
   recent?: string[];
   lang?: string;
   isrc?: string;
-  wide?: boolean;
+  /** How much to write: a few of the best, the usual set, or everything the evidence holds. */
+  depth?: "brief" | "normal" | "deep";
   told?: string[];
   keys?: string[];
   check?: boolean;
@@ -729,8 +744,9 @@ export default async function handler(req: any, res: any) {
     // "Wide" pulls the artist and the album in alongside the track's own evidence. It
     // is a setting rather than the default because it is slower and most notes are
     // about the recording, where the extra material is just noise to read past.
+    const depth = DEPTHS.includes(String(body.depth ?? "")) ? String(body.depth) : "normal";
     let wideBlock = "";
-    if (body.wide) {
+    if (depth === "deep") {
       const [artistEv, albumEv] = await Promise.all([
         gatherArtist(artists[0]).catch(() => ({ text: "", sources: [] as [string, string][] })),
         body.album
@@ -790,7 +806,7 @@ export default async function handler(req: any, res: any) {
           `Return the same JSON shape containing only the new notes. Set headline to "" ` +
           `and thread to null. If there is genuinely nothing more worth saying about this ` +
           `recording, return an empty notes array rather than padding.`
-        : `Write the notes.`);
+        : `${HOW_MUCH[depth]}\n\nWrite the notes.`);
 
     // Hebrew is a rewrite, not a translation pass — the model writes in it directly.
     const system = hebrew ? `${HEBREW_HEADER}${SYSTEM}` : SYSTEM;
@@ -865,6 +881,12 @@ export default async function handler(req: any, res: any) {
           typeof parsed.thread === "string" && parsed.thread.trim()
             ? parsed.thread.replace(LINK, "$2").trim()
             : null,
+        // Three things this record invites you to ask, written by the same pass that
+        // wrote the notes — so they are about this song rather than about songs.
+        questions: (Array.isArray(parsed.questions) ? parsed.questions : [])
+          .filter((q: unknown) => typeof q === "string" && q.trim().length > 6)
+          .map((q: string) => q.replace(LINK, "$2").trim())
+          .slice(0, 3),
         confidence: parsed.confidence === "low" ? "low" : "high",
         sources: [...evidence.sources, ...grounded.urls].slice(0, 8),
         live: grounded.live,
