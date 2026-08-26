@@ -274,19 +274,29 @@ export default function App() {
       if (!stage) return;
       const rtl = document.documentElement.dir === "rtl";
 
+      // Everything here has to be in one unit, and zoom means there are two.
+      // getBoundingClientRect and clientX are both in screen pixels; the width we then
+      // write is a CSS length, which the page multiplies by the zoom again. At 1.2 the
+      // column came back twenty percent wider than asked for, the divider ran away from
+      // the cursor and the whole thing bolted to its limit — which is why dragging only
+      // felt right at the default zoom. offsetWidth is the same box in CSS pixels, so
+      // dividing the two gives the factor without having to know how zoom is spelt.
+      const rect = stage.getBoundingClientRect();
+      const scale = stage.offsetWidth > 0 ? rect.width / stage.offsetWidth : 1;
+
       const widthOf = (sel: string) =>
-        stage.querySelector(sel)?.getBoundingClientRect().width ?? 0;
+        (stage.querySelector(sel)?.getBoundingClientRect().width ?? 0) / scale;
       const boxOf = () => {
         const r = stage.getBoundingClientRect();
-        return { left: r.left, right: r.right, width: r.width };
+        return { left: r.left / scale, right: r.right / scale, width: r.width / scale };
       };
 
       const mine = which === "sleeve" ? ".sleeve" : ".rail";
       const other = which === "sleeve" ? ".rail" : ".sleeve";
-      const grab = grabOffset(which, rtl, down.clientX, boxOf(), widthOf(mine));
+      const grab = grabOffset(which, rtl, down.clientX / scale, boxOf(), widthOf(mine));
 
       const move = (e: PointerEvent) => {
-        const w = dividerWidth(which, rtl, e.clientX, grab, boxOf(), widthOf(other));
+        const w = dividerWidth(which, rtl, e.clientX / scale, grab, boxOf(), widthOf(other));
         const set = which === "sleeve" ? setSleeveW : setRailW;
         set(`${w}px`);
         localStorage.setItem(which === "sleeve" ? "ln.sleeveW" : "ln.railW", `${w}px`);
