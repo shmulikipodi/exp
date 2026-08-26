@@ -34,6 +34,7 @@ import { Wash } from "./Wash";
 import { MARKS, MARK_ORDER, type Mark } from "./RailIcons";
 import { Lineage } from "./Lineage";
 import { useLyrics } from "./useLyrics";
+import { Words } from "./Words";
 import { isReading, scrollToLine, useReading } from "./LyricLines";
 import { Settings } from "./Settings";
 import {
@@ -323,8 +324,8 @@ export default function App() {
       };
 
       const FIRST = ".lineage, .sleeve";
-      const mine = which === "sleeve" ? FIRST : ".rail";
-      const other = which === "sleeve" ? ".rail" : FIRST;
+      const mine = which === "sleeve" ? FIRST : ".words";
+      const other = which === "sleeve" ? ".words" : FIRST;
       const grab = grabOffset(which, rtl, down.clientX / scale, boxOf(), widthOf(mine));
 
       const move = (e: PointerEvent) => {
@@ -744,7 +745,11 @@ export default function App() {
     playing?.album ?? "",
     playing?.durationMs ?? 0,
   );
-  const words = marks.includes("words") && !viewing ? (lyrics ?? []) : [];
+  // The words either run through the notes or stand in a column beside them. Both are
+  // the same lines; only where they are drawn changes.
+  const showWords = marks.includes("words") && !viewing;
+  const beside = showWords && marks.includes("split");
+  const words = showWords && !beside ? (lyrics ?? []) : [];
   const feed = useMemo(
     () => weave(shown, words, playing?.durationMs ?? 0),
     [shown, words, playing?.durationMs],
@@ -1726,6 +1731,27 @@ export default function App() {
             {error && <p className="error">{shownError}</p>}
           </section>
 
+          {beside && !phone && (
+            <>
+              <div
+                className="grip"
+                role="separator"
+                aria-label={t.resize}
+                onPointerDown={drag("rail")}
+                onDoubleClick={() => {
+                  setRailW("");
+                  localStorage.removeItem("ln.railW");
+                }}
+              />
+              <Words
+                t={t}
+                lines={lyrics}
+                progressMs={progress}
+                onSeek={(ms) => run(() => seek(ms), () => setProgress(ms))}
+              />
+            </>
+          )}
+
           </div>
 
           <div className="playerbar">
@@ -1851,7 +1877,7 @@ export default function App() {
               <div className="pb-panels">
                 {MARK_ORDER.map((id) => {
                   const open = marks.includes(id);
-                  const label = { tree: t.markTree, words: t.markWords }[id];
+                  const label = { tree: t.markTree, words: t.markWords, split: t.markSplit }[id];
                   return (
                     <button
                       key={id}

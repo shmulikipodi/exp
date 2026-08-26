@@ -149,7 +149,14 @@ export function Lineage({
       {tree?.about && <p className="tree-about">{tree.about}</p>}
 
       {!tree && <p className="loading">{t.loading}</p>}
-      {tree && !tree.found && <p className="help">{t.treeNone}</p>}
+      {/* An undocumented record is not a broken column. Say which sources were asked
+          and came back with nothing, so it reads as an answer rather than a failure. */}
+      {tree && !tree.found && built.length < 2 && (
+        <p className="help">
+          {t.treeNone}
+          <span>{t.treeNoneWhy}</span>
+        </p>
+      )}
 
       {songs(t.treeOriginal, tree?.original ?? [])}
 

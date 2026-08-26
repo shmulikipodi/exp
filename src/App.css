@@ -328,6 +328,8 @@ button.ghost:hover { color: var(--dim); background: none; }
 .lineage .artist { margin: 0 0 3px; font: 15px var(--sans); color: var(--dim); }
 .lineage .album { margin: 0; font: 12px var(--mono); color: var(--faint); }
 
+.lineage .help span { display: block; margin-top: 6px; font-size: 12px; opacity: 0.7; }
+
 .tree-about {
   margin: 0 0 4px;
   font: 15px/1.5 var(--serif);
@@ -1155,6 +1157,26 @@ body.dragging { cursor: col-resize; user-select: none; }
   padding-top: 20px;
   border-top: 1px solid var(--line);
 }
+
+/* The words in a column of their own, for reading them beside the notes rather than
+   through them. Hidden below the width where a third column stops being a column. */
+.words { display: none; }
+@media (min-width: 1180px) {
+  .words {
+    display: block;
+    flex: 0 0 var(--rail-w, clamp(280px, 24vw, 440px));
+    min-width: 0;
+    height: var(--app-h);
+    overflow-y: auto;
+    scrollbar-width: none;
+    padding: 68px 3vw 40vh;
+  }
+}
+.words::-webkit-scrollbar { display: none; }
+.words::before { content: ""; display: block; height: 12vh; }
+.words .lyric-line { font-size: clamp(17px, 1.35vw, 23px); }
+.words.reading .lyric-line { filter: none; opacity: 0.78; }
+.words.reading .lyric-line.now { opacity: 1; }
 
 /* ---------- the words, with the notes standing in them ----------
    The explanation is not in a list somewhere else; it is where the thing it explains
