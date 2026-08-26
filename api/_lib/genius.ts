@@ -10,9 +10,26 @@
 
 import { sameSong } from "./evidence.js";
 
-const G = "https://genius.com/api";
-// Genius answers a default agent with an interstitial. A named one gets the JSON.
+// Two ways in, because the free one only works from a laptop. genius.com/api is the
+// site's own endpoint — no key, complete data — but it sits behind Cloudflare, which
+// answers a datacenter IP with a 403 challenge, so in production it returns nothing.
+// api.genius.com is the documented API, carries the same fields, and takes a free
+// token. With a token, that; without one, the open endpoint, so local development and
+// anyone self-hosting still get the best source this app has.
+const OPEN = "https://genius.com/api";
+const OFFICIAL = "https://api.genius.com";
 const UA = "Mozilla/5.0 (compatible; exp/1.0; +https://exp-pearl.vercel.app)";
+
+const token = () => (process.env.GENIUS_TOKEN ?? "").trim();
+const base = () => (token() ? OFFICIAL : OPEN);
+const headers = () => {
+  const auth = token();
+  return {
+    "user-agent": UA,
+    accept: "application/json",
+    ...(auth ? { authorization: `Bearer ${auth}` } : {}),
+  };
+};
 
 export type Link = { kind: string; title: string; artist: string; weight: number };
 export type Annotation = { line: string; note: string; votes: number };
@@ -66,10 +83,7 @@ async function json(url: string, timeoutMs = 8000, tries = 2): Promise<any> {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), timeoutMs);
     try {
-      const res = await fetch(url, {
-        headers: { "user-agent": UA, accept: "application/json" },
-        signal: ctl.signal,
-      });
+      const res = await fetch(url, { headers: headers(), signal: ctl.signal });
       if (res.ok) return await res.json();
       if (res.status !== 429 && res.status < 500) return null;
     } catch {
@@ -143,17 +157,22 @@ export async function story(title: string, artist: string): Promise<Story> {
     return value;
   };
 
-  const found = await json(
-    `${G}/search/multi?q=${encodeURIComponent(`${title} ${artist}`)}`,
-  );
-  const sections = found?.response?.sections ?? [];
-  const hits = sections.find((s: any) => s?.type === "song")?.hits ?? [];
+  const q = encodeURIComponent(`${title} ${artist}`);
+  const found = token()
+    ? await json(`${OFFICIAL}/search?q=${q}`)
+    : await json(`${OPEN}/search/multi?q=${q}`);
+
+  // /search returns hits directly; /search/multi buckets them into sections.
+  const hits =
+    found?.response?.hits ??
+    (found?.response?.sections ?? []).find((s: any) => s?.type === "song")?.hits ??
+    [];
   const picked = pickSong(hits, title, artist);
   if (!picked?.id) return remember(NOTHING);
 
   const [full, refs] = await Promise.all([
-    json(`${G}/songs/${picked.id}?text_format=plain`),
-    json(`${G}/referents?song_id=${picked.id}&text_format=plain&per_page=25`),
+    json(`${base()}/songs/${picked.id}?text_format=plain`),
+    json(`${base()}/referents?song_id=${picked.id}&text_format=plain&per_page=25`),
   ]);
   const song = full?.response?.song;
   if (!song) return remember(NOTHING);
