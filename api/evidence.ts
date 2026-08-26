@@ -148,7 +148,7 @@ export function pickWikis(title: string, artist: string, uiLang = "en"): string[
 
 export type Evidence = { text: string; sources: [string, string][] };
 
-const clean = (s: string) => s.replace(/["\\]/g, " ").trim();
+export const clean = (s: string) => s.replace(/["\\]/g, " ").trim();
 
 /**
  * Loose title comparison — "Song (Remastered 2011)" is still the same song.
@@ -173,7 +173,7 @@ export function sameSong(a: string | undefined, b: string): boolean {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function json(url: string, timeoutMs = 4500, tries = 2): Promise<any> {
+export async function json(url: string, timeoutMs = 4500, tries = 2): Promise<any> {
   for (let i = 0; i < tries; i++) {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), timeoutMs);

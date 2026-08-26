@@ -31,6 +31,7 @@ import { Linked } from "./Linked";
 import { Lyrics } from "./Lyrics";
 import { Wash } from "./Wash";
 import { RAIL_ICONS, RAIL_ORDER } from "./RailIcons";
+import { Lineage } from "./Lineage";
 import { Rail, type RailMode } from "./Rail";
 import { Settings } from "./Settings";
 import {
@@ -199,6 +200,12 @@ export default function App() {
   const [reload, setReload] = useState(0);
   const [keyCount, setKeyCount] = useState(liveKeys().length);
   const [wide, setWide] = useState(() => localStorage.getItem("ln.wide") === "1");
+  // The phone keeps the sleeve: there are no columns there, the artwork is the whole
+  // first screen and it collapses into a bar as you scroll. Only the desktop's first
+  // column was a picture you could already see somewhere else.
+  const [phone, setPhone] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches,
+  );
   const [player, setPlayer] = useState<PlayerState>({ status: "off" });
   const [upNext, setUpNext] = useState<{ label: string; headline: string } | null>(null);
   // null = we have not tried to control playback yet. false = this account can't.
@@ -244,6 +251,13 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("ln.rails", JSON.stringify(rails));
   }, [rails]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const sync = () => setPhone(mq.matches);
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   // CSS zoom rather than a font-size scale: every size in this stylesheet is in px, so
   // scaling the root font would move nothing.
@@ -291,8 +305,9 @@ export default function App() {
         return { left: r.left / scale, right: r.right / scale, width: r.width / scale };
       };
 
-      const mine = which === "sleeve" ? ".sleeve" : ".rail";
-      const other = which === "sleeve" ? ".rail" : ".sleeve";
+      const FIRST = ".lineage, .sleeve";
+      const mine = which === "sleeve" ? FIRST : ".rail";
+      const other = which === "sleeve" ? ".rail" : FIRST;
       const grab = grabOffset(which, rtl, down.clientX / scale, boxOf(), widthOf(mine));
 
       const move = (e: PointerEvent) => {
@@ -1225,77 +1240,120 @@ export default function App() {
       {track && (
         <>
           <div className="columns">
-          <section className="sleeve">
-            {track.art && (
-              <img
-                className="cover"
-                src={track.art}
-                alt=""
-                // Must match the crossOrigin of the palette sampler's request, or the
-                // browser caches a non-CORS copy and tainting kills colour extraction.
-                crossOrigin="anonymous"
-                onError={(e) => (e.currentTarget.style.display = "none")}
-              />
-            )}
-            <h1>{track.title}</h1>
-            <p className="artist">
-              <button
-                className={`link${busy === "artist" ? " busy" : ""}`}
-                disabled={!activeNotes || busy !== ""}
-                onClick={() => askTopic("artist")}
-              >
-                {track.artists.join(", ")}
-              </button>
-            </p>
-            <p className="album">
-              <button
-                className={`link${busy === "album" ? " busy" : ""}`}
-                disabled={!activeNotes || busy !== ""}
-                onClick={() => askTopic("album")}
-              >
-                {track.album}
-              </button>
-              {track.released && <span> · {track.released.slice(0, 4)}</span>}
-            </p>
-
-
-
-
-            {!viewing && upNext && (
-              <p className="up-next">
-                <b>{t.upNext}</b> {upNext.label}
-                {upNext.headline && <span>{upNext.headline}</span>}
+          {phone ? (
+            <section className="sleeve">
+              {track.art && (
+                <img
+                  className="cover"
+                  src={track.art}
+                  alt=""
+                  // Must match the crossOrigin of the palette sampler's request, or the
+                  // browser caches a non-CORS copy and tainting kills colour extraction.
+                  crossOrigin="anonymous"
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                />
+              )}
+              <h1>{track.title}</h1>
+              <p className="artist">
+                <button
+                  className={`link${busy === "artist" ? " busy" : ""}`}
+                  disabled={!activeNotes || busy !== ""}
+                  onClick={() => askTopic("artist")}
+                >
+                  {track.artists.join(", ")}
+                </button>
               </p>
-            )}
-
-            {PLAYER_ENABLED && !viewing && player.status !== "off" && (
-              <p className="player-line">
-                {player.status === "loading" && t.playerStarting}
-                {player.status === "ready" && (
-                  <button className="link" onClick={playHere}>
-                    {t.playHere}
-                  </button>
-                )}
-                {player.status === "unsupported" &&
-                  (player.reason === "premium"
-                    ? t.playerPremium
-                    : player.reason === "reconnect"
-                      ? t.playerReconnect
-                      : player.reason)}
+              <p className="album">
+                <button
+                  className={`link${busy === "album" ? " busy" : ""}`}
+                  disabled={!activeNotes || busy !== ""}
+                  onClick={() => askTopic("album")}
+                >
+                  {track.album}
+                </button>
+                {track.released && <span> · {track.released.slice(0, 4)}</span>}
               </p>
-            )}
 
-            {controlNote && (
-              <p className="control-note">
-                {controlNote}
-                {controlNote === t.reconnect && (
-                  <button className="ghost" onClick={login}>
-                    Spotify →
-                  </button>
-                )}
-              </p>
-            )}
-          </section>
+
+
+
+              {!viewing && upNext && (
+                <p className="up-next">
+                  <b>{t.upNext}</b> {upNext.label}
+                  {upNext.headline && <span>{upNext.headline}</span>}
+                </p>
+              )}
+
+              {PLAYER_ENABLED && !viewing && player.status !== "off" && (
+                <p className="player-line">
+                  {player.status === "loading" && t.playerStarting}
+                  {player.status === "ready" && (
+                    <button className="link" onClick={playHere}>
+                      {t.playHere}
+                    </button>
+                  )}
+                  {player.status === "unsupported" &&
+                    (player.reason === "premium"
+                      ? t.playerPremium
+                      : player.reason === "reconnect"
+                        ? t.playerReconnect
+                        : player.reason)}
+                </p>
+              )}
+
+              {controlNote && (
+                <p className="control-note">
+                  {controlNote}
+                  {controlNote === t.reconnect && (
+                    <button className="ghost" onClick={login}>
+                      Spotify →
+                    </button>
+                  )}
+                </p>
+              )}
+            </section>
+          ) : (
+            <Lineage
+              t={t}
+              title={track.title}
+              artist={track.artists[0] ?? ""}
+              album={track.album}
+              released={track.released}
+              isrc={track.isrc}
+              onPlay={(query) => run(() => playSearch(query))}
+            />
+          )}
+
+          {(controlNote || (PLAYER_ENABLED && !viewing && player.status !== "off")) && (
+            <div className="column-foot">
+              {PLAYER_ENABLED && !viewing && player.status !== "off" && (
+                <p className="player-line">
+                  {player.status === "loading" && t.playerStarting}
+                  {player.status === "ready" && (
+                    <button className="link" onClick={playHere}>
+                      {t.playHere}
+                    </button>
+                  )}
+                  {player.status === "unsupported" &&
+                    (player.reason === "premium"
+                      ? t.playerPremium
+                      : player.reason === "reconnect"
+                        ? t.playerReconnect
+                        : player.reason)}
+                </p>
+              )}
+              {controlNote && (
+                <p className="control-note">
+                  {controlNote}
+                  {controlNote === t.reconnect && (
+                    <button className="ghost" onClick={login}>
+                      Spotify →
+                    </button>
+                  )}
+                </p>
+              )}
+            </div>
+          )}
 
           {viewing && (
             <p className="from-history">

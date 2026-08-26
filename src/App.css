@@ -275,30 +275,102 @@ button.ghost:hover { color: var(--dim); background: none; }
 
 /* ---------- now playing ---------- */
 
-.sleeve {
-  flex: 0 0 var(--sleeve-w, 44%);
-  max-width: var(--sleeve-w, var(--sleeve-cap, 620px));
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 4vh 3.4vw;
+/* ---------- the first column: where the song came from and went ----------
+   It held the album cover, which is a picture already sitting in the bar below it.
+   This is the part of a record you cannot see anywhere else. */
+.lineage {
+  flex: 0 0 var(--sleeve-w, 32%);
+  max-width: var(--sleeve-w, var(--sleeve-cap, 460px));
   min-width: 0;
+  height: var(--app-h);
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 68px 3.4vw 24px;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 5%, #000 93%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0, #000 5%, #000 93%, transparent 100%);
 }
+.lineage::-webkit-scrollbar { display: none; }
 
-/* With a third column open the sleeve cannot also take 620px, or the notes are left
-   with nothing to read in. It only yields when the panel is really there.
-   A cap, not a max-width: as a max-width this beat a hand-dragged --sleeve-w on
-   specificity, so the divider hit 460px and stopped following the cursor — it looked
-   like the drag was snapping back to a fixed place, because it was. */
-@media (min-width: 1180px) and (max-width: 1560px) {
-  .stage:has(.rail) .sleeve { --sleeve-cap: 460px; }
-}
-
-/* A flex column whose content overflows shrinks its items, and a 6px bar shrinks to
-   exactly nothing — which is how the progress line disappeared when the transport and
-   the larger type pushed the sleeve past the viewport. Nothing here may shrink; the
-   artwork is capped by viewport height instead, so there is never a shortfall. */
+/* The phone keeps the sleeve — the artwork is its whole first screen. Only the base
+   the small-screen rules build on is needed here; the rest lives in the media query. */
+.sleeve { display: flex; flex-direction: column; justify-content: center; padding: 4vh 3.4vw; min-width: 0; }
 .sleeve > * { flex-shrink: 0; }
+
+/* With the panel open the first column cannot also take its full width, or the notes
+   are left with nothing to read in. A cap rather than a max-width: as a max-width this
+   beat a hand-dragged --sleeve-w on specificity, so the divider hit the cap and stopped
+   following the cursor — it looked like the drag was snapping back to a fixed place,
+   because it was. */
+@media (min-width: 1180px) and (max-width: 1560px) {
+  .stage:has(.rail) .lineage { --sleeve-cap: 400px; }
+}
+
+.lineage > header { margin-bottom: 30px; }
+.lineage h1 {
+  margin: 0 0 6px;
+  font: var(--display-weight, 700) clamp(24px, 2.4vw, 38px)/1.1 var(--display);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.lineage .artist { margin: 0 0 3px; font: 15px var(--sans); color: var(--dim); }
+.lineage .album { margin: 0; font: 12px var(--mono); color: var(--faint); }
+
+.tree-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 26px 0 8px;
+  font: 600 10px var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.tree-head span { font-size: 11px; letter-spacing: 0.04em; color: var(--accent); }
+
+.tree { list-style: none; margin: 0; padding: 0; }
+.tree li { border-top: 1px solid var(--line); }
+.tree li:last-child { border-bottom: 1px solid var(--line); }
+/* Every row is somewhere to go: it plays that version. */
+.tree button {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 4px;
+  border: none;
+  background: none;
+  text-align: start;
+  transition: background 0.15s;
+}
+.tree button:hover { background: rgba(243,237,227,0.06); }
+.tree-who {
+  flex: 1;
+  min-width: 0;
+  font: 500 14px var(--sans);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree button:hover .tree-who { color: var(--accent); }
+.tree-what { font: 11px var(--mono); color: var(--faint); flex-shrink: 0; }
+.tree-note {
+  font: 10px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  flex-shrink: 0;
+}
+.tree-more { margin-top: 10px; font: 12px var(--mono); color: var(--accent); }
+
+.column-foot {
+  position: absolute;
+  inset-block-end: 96px;
+  inset-inline-start: 3.4vw;
+  max-width: 30ch;
+}
 
 .cover {
   /* Take the column, unless the window is too short for the text beneath it. The cap
