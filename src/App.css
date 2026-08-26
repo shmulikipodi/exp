@@ -1055,16 +1055,18 @@ body.dragging { cursor: col-resize; user-select: none; }
 
 /* ---------- the notes ---------- */
 
-/* Reads like a lyric sheet: the note nearest the middle is sharp, its neighbours
-   soften away. The tall padding lets the first and last note reach the centre. */
+/* The words and the notes written against them. The top padding used to be 44vh so
+   the first note could reach the middle of the column — with the words in here that is
+   a screen and a half of nothing before anything begins. The bottom keeps the last
+   note clear of the ask box, which is sticky and opaque and would otherwise sit on it. */
 .stream {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
   scroll-behavior: smooth;
-  padding: 44vh 4vw 46vh;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 11%, #000 89%, transparent 100%);
-  mask-image: linear-gradient(180deg, transparent 0, #000 11%, #000 89%, transparent 100%);
+  padding: 68px 4vw 24vh;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 4%, #000 100%);
+  mask-image: linear-gradient(180deg, transparent 0, #000 4%, #000 100%);
   scrollbar-width: none;
 }
 .stream::-webkit-scrollbar { display: none; }
@@ -1105,11 +1107,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 
 .note {
   max-width: 30em;
-  padding: 0 0 12vh;
+  padding: 0 0 6vh;
   animation: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
-  /* filter and opacity are driven per-frame from App.tsx */
-  transition: filter 0.42s ease, opacity 0.42s ease;
-  will-change: filter, opacity;
 }
 
 @keyframes rise {
@@ -1146,12 +1145,15 @@ body.dragging { cursor: col-resize; user-select: none; }
 .invites button:hover:not(:disabled) { color: var(--ink); border-color: var(--accent-dim); }
 
 /* The conversation stays within reach: the notes are an opening answer, not the end. */
+/* Not sticky. Pinned to the bottom of the column it had an opaque background and sat
+   on whatever was behind it — on a short set of notes that put a floating panel in the
+   middle of the screen with the reading underneath it. It sits at the end of the
+   column instead, where the reading ends and the asking begins. */
 .conversation {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  padding-bottom: 14px;
-  background: linear-gradient(180deg, transparent 0, var(--bg) 18%, var(--bg) 100%);
+  max-width: 30em;
+  margin-top: 7vh;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
 }
 
 /* ---------- the words, with the notes standing in them ----------
@@ -1333,7 +1335,7 @@ body.dragging { cursor: col-resize; user-select: none; }
   max-width: 30em;
 }
 [dir="rtl"] .answer { border-radius: 10px 0 0 10px; }
-.answer.standalone { margin-bottom: 12vh; }
+.answer.standalone { margin-bottom: 5vh; }
 
 /* An artist or album answer is its own subject, not a follow-up — it gets a heading
    rather than a quoted question, and its own colour. */

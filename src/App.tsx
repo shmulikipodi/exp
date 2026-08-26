@@ -254,7 +254,6 @@ export default function App() {
   const viewingRef = useRef<string>("");
   const pullRef = useRef<(() => Promise<void>) | null>(null);
   const queuedRef = useRef<Awaited<ReturnType<typeof queueNext>>>(null);
-  const lastManual = useRef(0);
   // Where you were before a click in the family tree sent you somewhere else, so there
   // is a way back to it — at the second it was interrupted, in the queue it came from.
   const [detour, setDetour] = useState<{
@@ -761,9 +760,14 @@ export default function App() {
     scrollToLine(streamRef.current, document.querySelector(`.stream [data-l="${sungNow}"]`));
   }, [sungNow, reading]);
 
-  // Apple-Music-lyrics focus: whatever sits nearest the middle of the column is sharp,
-  // everything else softens with distance. Written straight to the DOM because this
-  // runs on every scroll frame and must never trigger a React render.
+  // The phone's hero: the sleeve owns the first screen, then collapses out of the way.
+  // --c runs 0…1 across roughly one cover-height of scrolling; the CSS reads it.
+  //
+  // This used to also blur every note except the one nearest the middle of the column.
+  // That was right when the column was a stack of notes. Now the words carry the focus
+  // and the notes stand inside them, so two focus systems were fighting over the same
+  // screen and the notes lost — everything but one was faded to almost nothing, which
+  // is why the column looked empty.
   useEffect(() => {
     const el = streamRef.current;
     if (!el) return;
@@ -771,74 +775,28 @@ export default function App() {
 
     const apply = () => {
       frame = 0;
-
-      // Mobile hero: the sleeve owns the first screen, then collapses out of the way.
-      // 0…1 across roughly one cover-height of scrolling. Read by the CSS; the cover
-      // shrinks with a transform so the notes still scroll at a normal 1:1 rate.
       const stage = el.parentElement;
-      if (stage) {
-        const over = Math.max(1, window.innerWidth * 0.62);
-        const c = Math.min(1, Math.max(0, el.scrollTop / over));
-        stage.style.setProperty("--c", c.toFixed(3));
-        // The controls sit on the picture, so they leave with it. A calc() on opacity
-        // cannot also switch off pointer events, hence the flag.
-        stage.dataset.collapsed = c > 0.8 ? "1" : "0";
-      }
-
-      const nodes = Array.from(el.querySelectorAll<HTMLElement>(".note"));
-      if (nodes.length === 0) return;
-
-      const box = el.getBoundingClientRect();
-      const mid = box.top + box.height / 2;
-      const distances = nodes.map((node) => {
-        const r = node.getBoundingClientRect();
-        return Math.abs(r.top + r.height / 2 - mid) / box.height;
-      });
-
-      // Whichever note is closest to the middle is always fully sharp, even if it is
-      // nowhere near the centre. Blur is a way of pointing at one thing — a screen
-      // where everything is blurred points at nothing and just looks broken.
-      let nearest = 0;
-      for (let i = 1; i < distances.length; i++) {
-        if (distances[i] < distances[nearest]) nearest = i;
-      }
-
-      nodes.forEach((node, i) => {
-        if (i === nearest) {
-          node.style.filter = "none";
-          node.style.opacity = "1";
-          return;
-        }
-        const d = distances[i];
-        const blur = Math.min(4, Math.max(0.8, (d - 0.09) * 14));
-        node.style.filter = `blur(${blur.toFixed(2)}px)`;
-        node.style.opacity = String(Math.max(0.32, 1 - Math.max(0, d - 0.07) * 1.5));
-      });
+      if (!stage) return;
+      const over = Math.max(1, window.innerWidth * 0.62);
+      const c = Math.min(1, Math.max(0, el.scrollTop / over));
+      stage.style.setProperty("--c", c.toFixed(3));
+      // The controls sit on the picture, so they leave with it. A calc() on opacity
+      // cannot also switch off pointer events, hence the flag.
+      stage.dataset.collapsed = c > 0.8 ? "1" : "0";
     };
 
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(apply);
     };
-    // Only a real gesture counts as taking control — a smooth programmatic scroll
-    // fires "scroll" too, and must not look like the reader grabbing the wheel.
-    const onIntent = () => {
-      lastManual.current = Date.now();
-    };
-
-    el.addEventListener("scroll", onScroll, { passive: true });
-    el.addEventListener("wheel", onIntent, { passive: true });
-    el.addEventListener("touchstart", onIntent, { passive: true });
-    window.addEventListener("resize", apply);
     apply();
-
+    el.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", apply);
     return () => {
       el.removeEventListener("scroll", onScroll);
-      el.removeEventListener("wheel", onIntent);
-      el.removeEventListener("touchstart", onIntent);
       window.removeEventListener("resize", apply);
       cancelAnimationFrame(frame);
     };
-  }, [activeNotes, shown.length]);
+  }, []);
 
   // Notes are no longer a finished document — they can grow, shrink and be questioned.
   // Every change is written straight back to storage, so it survives the track change.
