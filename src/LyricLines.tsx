@@ -95,11 +95,13 @@ export function LyricLines({
   return (
     <>
       {lines.map((line, i) => {
-        // Asymmetric on purpose. What is coming matters more than what has gone, so
-        // the lines below the focus stay legible further down while the ones above
-        // fall away faster — the same way you read ahead of a singer, not behind.
+        // A waterline, the way a phone shows it: everything already sung stays lit and
+        // sharp, everything still to come is dim. The boundary between the two IS your
+        // position in the record, which is the thing you lose the moment you scroll —
+        // fading both directions away from the current line looked handsome and told
+        // you nothing about where you were.
         const from = i - active;
-        const d = active < 0 ? 0 : Math.min(7, from >= 0 ? from : -from * 1.8);
+        const d = active < 0 || from < 0 ? 0 : Math.min(7, from);
         const state = active < 0 ? "" : i === active ? " now" : i < active ? " sung" : "";
         return (
           <p

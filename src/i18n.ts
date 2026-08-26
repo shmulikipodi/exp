@@ -112,6 +112,9 @@ export const STRINGS = {
     howKnowLabel: "How do you know?",
     howKnow:
       "How do you know this? Name the source it came from and quote the line in it that says so. If it was not in the evidence you were given, say so plainly.",
+    treeAbout: "The people and the record",
+    whoAreThey: (who: string) => `Who are ${who}?`,
+    whatIsRecord: (album: string) => `What is ${album}?`,
     markTree: "The record",
     markWords: "The words",
     markSplit: "The words in their own column",
@@ -282,6 +285,9 @@ export const STRINGS = {
     howKnowLabel: "מאיפה זה?",
     howKnow:
       "מאיפה אתה יודע את זה? ציין את המקור וצטט את המשפט שאומר זאת. אם זה לא הופיע בראיות שקיבלת, אמור זאת במפורש.",
+    treeAbout: "האנשים והאלבום",
+    whoAreThey: (who: string) => `מי זה ${who}?`,
+    whatIsRecord: (album: string) => `מה זה ${album}?`,
     markTree: "התקליט",
     markWords: "המילים",
     markSplit: "המילים בעמודה נפרדת",

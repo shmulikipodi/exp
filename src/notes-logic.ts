@@ -74,7 +74,8 @@ export type LyricLine = { at: number; text: string };
 
 export type Woven<N> =
   | { kind: "note"; note: N; index: number }
-  | { kind: "line"; line: LyricLine; index: number };
+  | { kind: "line"; line: LyricLine; index: number }
+  | { kind: "section"; label: Section["label"]; at: number };
 
 /**
  * Put every note against the line it is about.
@@ -91,6 +92,7 @@ export function weave<N extends Placeable>(
   notes: N[],
   lines: LyricLine[],
   durationMs: number,
+  sections: Section[] = [],
 ): Woven<N>[] {
   const out: Woven<N>[] = [];
   const placed = new Set<number>();
@@ -119,7 +121,20 @@ export function weave<N extends Placeable>(
       if (!placed.has(i)) out.push({ kind: "note", note, index: i });
     });
 
+    // A heading wherever the record changes gear. Placed before the first line of the
+    // section, so reading down the column tells you what part of the song you are in.
+    const heads = new Map<number, Section["label"]>();
+    for (const part of sections) {
+      if (part.label === "instrumental" || part.label === "intro" || part.label === "outro") {
+        continue; // nobody is singing there, so there is no line to head
+      }
+      const first = lines.findIndex((l) => l.at >= part.at - 0.5);
+      if (first >= 0 && !heads.has(first)) heads.set(first, part.label);
+    }
+
     lines.forEach((line, l) => {
+      const head = heads.get(l);
+      if (head) out.push({ kind: "section", label: head, at: line.at });
       out.push({ kind: "line", line, index: l });
       for (const i of under.get(l) ?? []) out.push({ kind: "note", note: notes[i], index: i });
     });

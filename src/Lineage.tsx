@@ -62,6 +62,10 @@ export function Lineage({
   progressMs,
   onPlay,
   onSeek,
+  onAsk,
+  busy,
+  artistText,
+  albumText,
 }: {
   t: Strings;
   title: string;
@@ -74,6 +78,10 @@ export function Lineage({
   progressMs: number;
   onPlay: (query: string) => void;
   onSeek: (ms: number) => void;
+  onAsk: (topic: "artist" | "album") => void;
+  busy: string;
+  artistText?: string;
+  albumText?: string;
 }) {
   const [tree, setTree] = useState<Tree | null>(null);
   const [all, setAll] = useState(false);
@@ -209,6 +217,28 @@ export function Lineage({
       {songs(t.treeSampledBy, tree?.usedBy ?? [])}
       {songs(t.treeCoversOf, tree?.coveredBy ?? [])}
       {songs(t.treeVersions, tree?.versions ?? [])}
+
+      {/* Who they were and what the record was, asked for rather than dumped on you.
+          These used to be Spotify profile pages — followers, top tracks, a photograph.
+          This is the other thing: what you would want explained about the people and
+          the album, in prose, only if you ask. */}
+      <p className="tree-head">{t.treeAbout}</p>
+      <div className="about">
+        {artistText ? (
+          <p>{artistText}</p>
+        ) : (
+          <button className="link" disabled={busy !== ""} onClick={() => onAsk("artist")}>
+            {busy === "artist" ? t.thinking : t.whoAreThey(artist)}
+          </button>
+        )}
+        {albumText ? (
+          <p>{albumText}</p>
+        ) : (
+          <button className="link" disabled={busy !== ""} onClick={() => onAsk("album")}>
+            {busy === "album" ? t.thinking : t.whatIsRecord(album)}
+          </button>
+        )}
+      </div>
 
       {covers.length > 0 && (
         <>

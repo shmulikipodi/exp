@@ -187,3 +187,43 @@ describe("shape", () => {
     expect(found.filter((s) => s.label === "chorus")).toHaveLength(0);
   });
 });
+
+describe("weave with the song's shape", () => {
+  const lines = [
+    { at: 26, text: "verse line one" },
+    { at: 30, text: "verse line two" },
+    { at: 48, text: "chorus line one" },
+    { at: 52, text: "chorus line two" },
+  ];
+  const at = (seconds: number | null) => ({ at: seconds === null ? null : seconds / 100 });
+
+  it("heads each part of the song where its first line is", () => {
+    const woven = weave([], lines, 100_000, [
+      { label: "verse", at: 26, to: 30 },
+      { label: "chorus", at: 48, to: 52 },
+    ]);
+    const heads = woven.filter((w) => w.kind === "section");
+    expect(heads.map((h) => (h as { label: string }).label)).toEqual(["verse", "chorus"]);
+    expect(woven[0].kind).toBe("section");
+  });
+
+  it("does not head a passage nobody sings in", () => {
+    // An intro, a solo and an outro have no line to sit above.
+    const woven = weave([], lines, 100_000, [
+      { label: "intro", at: 0, to: 26 },
+      { label: "verse", at: 26, to: 30 },
+      { label: "instrumental", at: 32, to: 48 },
+      { label: "outro", at: 60, to: 100 },
+    ]);
+    const heads = woven.filter((w) => w.kind === "section");
+    expect(heads.map((h) => (h as { label: string }).label)).toEqual(["verse"]);
+  });
+
+  it("still weaves the notes in with the headings there", () => {
+    const woven = weave([at(49)], lines, 100_000, [{ label: "chorus", at: 48, to: 52 }]);
+    const kinds = woven.map((w) => w.kind);
+    expect(kinds).toContain("section");
+    expect(kinds).toContain("note");
+    expect(kinds.filter((k) => k === "line")).toHaveLength(4);
+  });
+});

@@ -24,7 +24,7 @@ import {
 } from "./spotify";
 import { STRINGS, storedLang, storeLang, type Lang } from "./i18n";
 import { accentFrom, paletteFrom, type Swatch } from "./palette";
-import { dividerWidth, grabOffset, matchesLang, weave } from "./notes-logic";
+import { dividerWidth, grabOffset, matchesLang, shape, weave } from "./notes-logic";
 import { Keys, liveKeys } from "./Keys";
 import { onPlayer, startPlayer, type PlayerState } from "./player";
 import { History } from "./History";
@@ -752,9 +752,13 @@ export default function App() {
   const showWords = marks.includes("words") && !viewing;
   const beside = showWords && marks.includes("split");
   const words = showWords && !beside ? (lyrics ?? []) : [];
+  const built = useMemo(
+    () => shape(lyrics ?? [], playing?.durationMs ?? 0),
+    [lyrics, playing?.durationMs],
+  );
   const feed = useMemo(
-    () => weave(shown, words, playing?.durationMs ?? 0),
-    [shown, words, playing?.durationMs],
+    () => weave(shown, words, playing?.durationMs ?? 0, built),
+    [shown, words, playing?.durationMs, built],
   );
 
   // Which line is being sung, for the same focus the lyric panel used to give it.
@@ -1325,6 +1329,14 @@ export default function App() {
               progressMs={progress}
               onPlay={wander}
               onSeek={(ms) => run(() => seek(ms), () => setProgress(ms))}
+              onAsk={askTopic}
+              busy={busy}
+              artistText={
+                (activeNotes?.answers ?? []).find((a) => a.about === "topic:artist")?.body
+              }
+              albumText={
+                (activeNotes?.answers ?? []).find((a) => a.about === "topic:album")?.body
+              }
             />
           ) : phone ? (
             <section className="sleeve">
@@ -1496,6 +1508,13 @@ export default function App() {
                 )}
 
                 {feed.map((item, slot) => {
+                  if (item.kind === "section") {
+                    return (
+                      <p key={`s${slot}`} className="part">
+                        {t.sections[item.label] ?? item.label}
+                      </p>
+                    );
+                  }
                   if (item.kind === "line") {
                     const to = item.line.at * 1000;
                     const canGo = !viewing && canControl !== false && track.durationMs > 0;
@@ -1509,15 +1528,13 @@ export default function App() {
                         // lifts all of it because scrolling means reading.
                         style={
                           {
+                            // Distance ahead of the line being sung. Lines already
+                            // sung get nothing: they are lit, and the edge between lit
+                            // and unlit is how you find your place.
                             "--d":
-                              sungNow < 0
+                              sungNow < 0 || item.index < sungNow
                                 ? 0
-                                : Math.min(
-                                    7,
-                                    item.index >= sungNow
-                                      ? item.index - sungNow
-                                      : (sungNow - item.index) * 1.8,
-                                  ),
+                                : Math.min(7, item.index - sungNow),
                           } as React.CSSProperties
                         }
                         className={`woven${
