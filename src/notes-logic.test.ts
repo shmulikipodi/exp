@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MIN_NOTES, dividerWidth, grabOffset, matchesLang } from "./notes-logic";
+import { MIN_NOTES, dividerWidth, grabOffset, matchesLang, weave } from "./notes-logic";
 
 const note = (body: string) => ({ body });
 
@@ -76,5 +76,45 @@ describe("dragging a divider", () => {
     const grab = grabOffset("rail", false, 1400, box, 0);
     expect(dividerWidth("rail", false, 1400, grab, box, 300)).toBe(240);
     expect(dividerWidth("rail", false, 0, grab, box, 300)).toBe(640);
+  });
+});
+
+describe("weave", () => {
+  const lines = [
+    { at: 26, text: "Load up on guns, bring your friends" },
+    { at: 30, text: "It's fun to lose and to pretend" },
+    { at: 34, text: "She's over-bored and self-assured" },
+  ];
+  // A 100-second recording, so a note's fraction reads as seconds directly.
+  const at = (seconds: number | null) => ({ at: seconds === null ? null : seconds / 100 });
+
+  it("puts a note under the line that was being sung", () => {
+    const woven = weave([at(31)], lines, 100_000);
+    const order = woven.map((w) => (w.kind === "line" ? w.line.text.slice(0, 8) : "NOTE"));
+    expect(order).toEqual(["Load up ", "It's fun", "NOTE", "She's ov"]);
+  });
+
+  it("puts what the record is before the record starts", () => {
+    // Notes with no moment, and notes from before the first word, both belong up top.
+    const woven = weave([at(null), at(4), at(31)], lines, 100_000);
+    expect(woven.slice(0, 2).every((w) => w.kind === "note")).toBe(true);
+    expect(woven[2].kind).toBe("line");
+  });
+
+  it("keeps several notes on one line in the order they were written", () => {
+    const woven = weave([at(35), at(36)], lines, 100_000);
+    const notes = woven.filter((w) => w.kind === "note");
+    expect(notes.map((n) => (n as { index: number }).index)).toEqual([0, 1]);
+  });
+
+  it("is the plain list of notes when there are no words to hang them on", () => {
+    const woven = weave([at(31), at(null)], [], 100_000);
+    expect(woven).toHaveLength(2);
+    expect(woven.every((w) => w.kind === "note")).toBe(true);
+  });
+
+  it("does not lose a note whose moment lands after the last line", () => {
+    const woven = weave([at(90)], lines, 100_000);
+    expect(woven[woven.length - 1].kind).toBe("note");
   });
 });

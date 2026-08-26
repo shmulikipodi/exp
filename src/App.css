@@ -291,7 +291,7 @@ button.ghost:hover { color: var(--dim); background: none; }
    It held the album cover, which is a picture already sitting in the bar below it.
    This is the part of a record you cannot see anywhere else. */
 .lineage {
-  flex: 0 0 var(--sleeve-w, 32%);
+  flex: 0 0 var(--sleeve-w, 34%);
   max-width: var(--sleeve-w, var(--sleeve-cap, 460px));
   min-width: 0;
   height: var(--app-h);
@@ -314,7 +314,7 @@ button.ghost:hover { color: var(--dim); background: none; }
    following the cursor — it looked like the drag was snapping back to a fixed place,
    because it was. */
 @media (min-width: 1180px) and (max-width: 1560px) {
-  .stage:has(.rail) .lineage { --sleeve-cap: 400px; }
+  .stage:has(.lineage) .lineage { --sleeve-cap: 420px; }
 }
 
 .lineage > header { margin-bottom: 30px; }
@@ -1087,6 +1087,37 @@ body.dragging { cursor: col-resize; user-select: none; }
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: none; }
 }
+
+/* ---------- the words, with the notes standing in them ----------
+   The explanation is not in a list somewhere else; it is where the thing it explains
+   is. A lyric line reads like a lyric line and a note reads like a note, so the column
+   stays two voices rather than one grey wall. */
+.woven {
+  margin: 0 0 6px;
+  max-width: 26em;
+  font: var(--display-weight, 700) clamp(19px, 1.55vw, 26px)/1.3 var(--display);
+  letter-spacing: -0.018em;
+  color: #f3ede3;
+  opacity: calc(1 - var(--d, 0) * 0.105);
+  filter: blur(calc(var(--d, 0) * var(--d, 0) * 0.24px));
+  text-shadow: 0 1px 14px rgba(11,10,9,0.55);
+  transition: opacity 0.4s ease, filter 0.4s ease, color 0.4s ease;
+}
+.woven.seekable { cursor: pointer; }
+.woven.now { color: #fff; opacity: 1; filter: none; }
+/* Scrolling means reading, and blurred text cannot be read. */
+.stream.reading .woven { filter: none; opacity: 0.78; }
+.stream.reading .woven.now { opacity: 1; }
+
+/* A note inside the words is set in, so the eye can tell at a glance which voice it is
+   looking at without reading a word of either. */
+.stream .woven + .note,
+.woven ~ .note {
+  margin-block: 18px 26px;
+  padding: 0 0 0 18px;
+  border-inline-start: 2px solid var(--accent-dim);
+}
+[dir="rtl"] .stream .woven ~ .note { padding: 0 18px 0 0; }
 
 /* The topics this record actually produced, as a row you can narrow the column with.
    Same voice as the label on each note, because it is the same thing — the label tells

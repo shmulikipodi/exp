@@ -12,7 +12,7 @@ export const FOCUS = 0.3;
 /** How long after your last scroll the words stay sharp and the song stops dragging you. */
 const READING_MS = 3000;
 
-const SCROLLERS = ".lyrics-part .rail-body, .lyric-full-body";
+const SCROLLERS = ".stream, .lyric-full-body";
 
 /**
  * While you are scrolling the lyrics, all of them come into focus and the playhead

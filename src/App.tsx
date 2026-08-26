@@ -24,16 +24,17 @@ import {
 } from "./spotify";
 import { STRINGS, storedLang, storeLang, type Lang } from "./i18n";
 import { accentFrom, paletteFrom, type Swatch } from "./palette";
-import { dividerWidth, grabOffset, matchesLang } from "./notes-logic";
+import { dividerWidth, grabOffset, matchesLang, weave } from "./notes-logic";
 import { Keys, liveKeys } from "./Keys";
 import { onPlayer, startPlayer, type PlayerState } from "./player";
 import { History } from "./History";
 import { Linked } from "./Linked";
 import { Lyrics } from "./Lyrics";
 import { Wash } from "./Wash";
-import { RAIL_ICONS, RAIL_ORDER } from "./RailIcons";
+import { MARKS, MARK_ORDER, type Mark } from "./RailIcons";
 import { Lineage } from "./Lineage";
-import { Rail, type RailMode } from "./Rail";
+import { useLyrics } from "./useLyrics";
+import { isReading, scrollToLine, useReading } from "./LyricLines";
 import { Settings } from "./Settings";
 import {
   type Entry,
@@ -213,16 +214,17 @@ export default function App() {
   const [controlNote, setControlNote] = useState("");
   const [showHistory, setShowHistory] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
-  const [rails, setRails] = useState<RailMode[]>(() => {
+  // Two things you can turn on: the record's own column, and the words the notes are
+  // written against. What used to be four panels of Spotify's furniture is gone.
+  const [marks, setMarks] = useState<Mark[]>(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("ln.rails") ?? "null");
-      if (Array.isArray(saved)) return saved as RailMode[];
+      const saved = JSON.parse(localStorage.getItem("ln.marks") ?? "null");
+      if (Array.isArray(saved)) return saved.filter((m) => MARK_ORDER.includes(m)) as Mark[];
     } catch {
       /* first run, or something unparseable */
     }
-    return ["lyrics"];
-  });
-  const [zoom, setZoom] = useState(() => Number(localStorage.getItem("ln.zoom") ?? 1) || 1);
+    return ["tree", "words"];
+  });  const [zoom, setZoom] = useState(() => Number(localStorage.getItem("ln.zoom") ?? 1) || 1);
   const [showSettings, setShowSettings] = useState(false);
   // Column widths, dragged by hand and remembered. Empty means "whatever the layout
   // would have chosen", so an untouched app looks the way it was designed to.
@@ -259,8 +261,8 @@ export default function App() {
   const t = STRINGS[lang];
 
   useEffect(() => {
-    localStorage.setItem("ln.rails", JSON.stringify(rails));
-  }, [rails]);
+    localStorage.setItem("ln.marks", JSON.stringify(marks));
+  }, [marks]);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 900px)");
@@ -340,8 +342,8 @@ export default function App() {
     [],
   );
 
-  const toggleRail = useCallback((m: RailMode) => {
-    setRails((open) => (open.includes(m) ? open.filter((x) => x !== m) : [...open, m]));
+  const toggleMark = useCallback((m: Mark) => {
+    setMarks((open) => (open.includes(m) ? open.filter((x) => x !== m) : [...open, m]));
   }, []);
 
   useEffect(() => {
@@ -727,6 +729,31 @@ export default function App() {
   const shown = activeNotes
     ? activeNotes.notes.filter((n) => !onlyKind || n.kind === onlyKind)
     : [];
+
+  // The words, and every note standing against the line it is about. This is the whole
+  // idea of the column: the explanation is not in a list somewhere else, it is where
+  // the thing it explains is.
+  const lyrics = useLyrics(
+    playing?.title ?? "",
+    playing?.artists?.[0] ?? "",
+    playing?.album ?? "",
+    playing?.durationMs ?? 0,
+  );
+  const words = marks.includes("words") && !viewing ? (lyrics ?? []) : [];
+  const feed = useMemo(
+    () => weave(shown, words, playing?.durationMs ?? 0),
+    [shown, words, playing?.durationMs],
+  );
+
+  // Which line is being sung, for the same focus the lyric panel used to give it.
+  const sungNow = words.length
+    ? words.reduce((f, l, i) => (l.at <= progress / 1000 ? i : f), -1)
+    : -1;
+  const reading = useReading();
+  useEffect(() => {
+    if (sungNow < 0 || isReading(reading)) return;
+    scrollToLine(streamRef.current, document.querySelector(`.stream [data-l="${sungNow}"]`));
+  }, [sungNow, reading]);
 
   // Apple-Music-lyrics focus: whatever sits nearest the middle of the column is sharp,
   // everything else softens with distance. Written straight to the DOM because this
@@ -1275,7 +1302,17 @@ export default function App() {
       {track && (
         <>
           <div className="columns">
-          {phone ? (
+          {marks.includes("tree") && !phone ? (
+            <Lineage
+              t={t}
+              title={track.title}
+              artist={track.artists[0] ?? ""}
+              album={track.album}
+              released={track.released}
+              isrc={track.isrc}
+              onPlay={wander}
+            />
+          ) : phone ? (
             <section className="sleeve">
               {track.art && (
                 <img
@@ -1347,17 +1384,7 @@ export default function App() {
                 </p>
               )}
             </section>
-          ) : (
-            <Lineage
-              t={t}
-              title={track.title}
-              artist={track.artists[0] ?? ""}
-              album={track.album}
-              released={track.released}
-              isrc={track.isrc}
-              onPlay={wander}
-            />
-          )}
+          ) : null}
 
           {(controlNote || (PLAYER_ENABLED && !viewing && player.status !== "off")) && (
             <div className="column-foot">
@@ -1399,6 +1426,7 @@ export default function App() {
             </p>
           )}
 
+          {marks.includes("tree") && (
           <div
             className="grip"
             role="separator"
@@ -1409,6 +1437,7 @@ export default function App() {
               localStorage.removeItem("ln.sleeveW");
             }}
           />
+          )}
 
           <section className="stream" ref={streamRef}>
             {loading && <p className="loading">{t.loading}</p>}
@@ -1452,7 +1481,45 @@ export default function App() {
                   </p>
                 )}
 
-                {shown.map((n, i) => {
+                {feed.map((item, slot) => {
+                  if (item.kind === "line") {
+                    const to = item.line.at * 1000;
+                    const canGo = !viewing && canControl !== false && track.durationMs > 0;
+                    return (
+                      <p
+                        key={`l${slot}`}
+                        data-l={item.index}
+                        dir="auto"
+                        // Distance from the line being sung, the same measure the lyric
+                        // panel used: near is sharp, far is atmosphere, and scrolling
+                        // lifts all of it because scrolling means reading.
+                        style={
+                          {
+                            "--d":
+                              sungNow < 0
+                                ? 0
+                                : Math.min(
+                                    7,
+                                    item.index >= sungNow
+                                      ? item.index - sungNow
+                                      : (sungNow - item.index) * 1.8,
+                                  ),
+                          } as React.CSSProperties
+                        }
+                        className={`woven${
+                          item.index === sungNow ? " now" : item.index < sungNow ? " sung" : ""
+                        }${canGo ? " seekable" : ""}`}
+                        onClick={
+                          canGo ? () => run(() => seek(to), () => setProgress(to)) : undefined
+                        }
+                      >
+                        {item.line.text || "·"}
+                      </p>
+                    );
+                  }
+
+                  const n = item.note;
+                  const i = item.index;
                   // Only a note that names a moment is a place you can go. A note with
                   // no moment schedules at 0, which is "available from the start" — not
                   // "the song starts here".
@@ -1665,44 +1732,6 @@ export default function App() {
             {error && <p className="error">{shownError}</p>}
           </section>
 
-          {rails.length > 0 && (
-            <div
-              className="grip"
-              role="separator"
-              aria-label={t.resize}
-              onPointerDown={drag("rail")}
-              onDoubleClick={() => {
-                setRailW("");
-                localStorage.removeItem("ln.railW");
-              }}
-            />
-          )}
-
-          {rails.length > 0 && (
-            <Rail
-              t={t}
-              modes={rails}
-              toggle={toggleRail}
-              title={track.title}
-              artist={track.artists[0] ?? ""}
-              album={track.album}
-              albumId={track.albumId}
-              artistId={track.artistId}
-              trackId={track.id}
-              durationMs={track.durationMs}
-              progressMs={progress}
-              lang={lang}
-              artistText={
-                (activeNotes?.answers ?? []).find((a) => a.about === "topic:artist")?.body
-              }
-              albumText={
-                (activeNotes?.answers ?? []).find((a) => a.about === "topic:album")?.body
-              }
-              onAsk={askTopic}
-              onSeek={(ms) => run(() => seek(ms), () => setProgress(ms))}
-              onExpand={() => setShowLyrics(true)}
-            />
-          )}
           </div>
 
           <div className="playerbar">
@@ -1826,9 +1855,9 @@ export default function App() {
             <div className="pb-end">
               {upNext && <span className="pb-next">{t.upNext} {upNext.label}</span>}
               <div className="pb-panels">
-                {RAIL_ORDER.map((id) => {
-                  const open = rails.includes(id);
-                  const label = { lyrics: t.railLyrics, queue: t.railQueue, artist: t.railArtist, album: t.railAlbum }[id];
+                {MARK_ORDER.map((id) => {
+                  const open = marks.includes(id);
+                  const label = { tree: t.markTree, words: t.markWords }[id];
                   return (
                     <button
                       key={id}
@@ -1836,9 +1865,9 @@ export default function App() {
                       aria-pressed={open}
                       title={label}
                       aria-label={label}
-                      onClick={() => toggleRail(id)}
+                      onClick={() => toggleMark(id)}
                     >
-                      {RAIL_ICONS[id]}
+                      {MARKS[id]}
                     </button>
                   );
                 })}

@@ -65,3 +65,66 @@ export function dividerWidth(
   const room = box.width - other - MIN_NOTES;
   return Math.round(Math.min(max, Math.max(min, Math.min(reach(which, rtl, x, box) - grab, room))));
 }
+
+// ---------------------------------------------------------------------------
+// The words and what there is to say about them, as one column.
+
+export type Placeable = { at: number | null };
+export type LyricLine = { at: number; text: string };
+
+export type Woven<N> =
+  | { kind: "note"; note: N; index: number }
+  | { kind: "line"; line: LyricLine; index: number };
+
+/**
+ * Put every note against the line it is about.
+ *
+ * A note carries a position in the recording and a lyric line carries a time, so the
+ * two can be married without asking anyone: a note belongs to the last line that had
+ * started when the thing it describes happened. Notes that name no moment go first —
+ * what the record is, before the record starts.
+ *
+ * With no synced words this returns the notes in their own order, which is the column
+ * exactly as it was.
+ */
+export function weave<N extends Placeable>(
+  notes: N[],
+  lines: LyricLine[],
+  durationMs: number,
+): Woven<N>[] {
+  const out: Woven<N>[] = [];
+  const placed = new Set<number>();
+
+  if (lines.length > 0 && durationMs > 0) {
+    // Which line each note sits under. A note at 0:00 of a song whose first line is
+    // sung at 0:26 belongs above the words, not jammed under the last one.
+    const seconds = (n: N) => (n.at === null ? -1 : n.at * (durationMs / 1000));
+    const under = new Map<number, number[]>();
+    notes.forEach((note, i) => {
+      const at = seconds(note);
+      if (at < 0) return;
+      let line = -1;
+      for (let l = 0; l < lines.length; l++) {
+        if (lines[l].at <= at) line = l;
+        else break;
+      }
+      if (line < 0) return; // before the first word: it belongs with the loose notes
+      placed.add(i);
+      const here = under.get(line) ?? [];
+      here.push(i);
+      under.set(line, here);
+    });
+
+    notes.forEach((note, i) => {
+      if (!placed.has(i)) out.push({ kind: "note", note, index: i });
+    });
+
+    lines.forEach((line, l) => {
+      out.push({ kind: "line", line, index: l });
+      for (const i of under.get(l) ?? []) out.push({ kind: "note", note: notes[i], index: i });
+    });
+    return out;
+  }
+
+  return notes.map((note, i) => ({ kind: "note" as const, note, index: i }));
+}
