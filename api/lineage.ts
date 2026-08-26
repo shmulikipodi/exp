@@ -6,8 +6,8 @@
 // who else cut this, who got there first, what it was built out of, what was built
 // out of it. Smells Like Teen Spirit has 211 other artists on its work.
 
-import { clean, json, sameSong } from "./evidence.js";
-import { story as geniusStory } from "./genius.js";
+import { clean, json, sameSong } from "./_lib/evidence.js";
+import { story as geniusStory } from "./_lib/genius.js";
 
 const MB = "https://musicbrainz.org/ws/2";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

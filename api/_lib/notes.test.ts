@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allHebrew, looksHebrew, parseAnswer, parseNotes, toFraction } from "./notes.js";
+import { allHebrew, looksHebrew, parseAnswer, parseNotes, toFraction } from "../notes.js";
 
 describe("parseNotes", () => {
   it("reads plain JSON", () => {

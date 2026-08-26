@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { covers, once } from "./lineage.js";
+import { covers, once } from "../lineage.js";
 
 const rel = (artist: string, title: string, attributes: string[] = [], begin = "") => ({
   "target-type": "recording",

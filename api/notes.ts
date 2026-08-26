@@ -1,10 +1,10 @@
 // The product's opinion about what a liner note is. Edit the prompt here, not inline.
 
-import { ground, lastFallbackReason } from "./providers.js";
-import { gather, gatherAlbum, gatherArtist } from "./evidence.js";
-import { keyPool, poolStatus } from "./keys.js";
+import { ground, lastFallbackReason } from "./_lib/providers.js";
+import { gather, gatherAlbum, gatherArtist } from "./_lib/evidence.js";
+import { keyPool, poolStatus } from "./_lib/keys.js";
 import { fetchLyrics } from "./lyrics.js";
-import { findEpisode, findMentions } from "./podcast.js";
+import { findEpisode, findMentions } from "./_lib/podcast.js";
 
 const MODEL = "gemini-3.6-flash";
 
