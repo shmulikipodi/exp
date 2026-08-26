@@ -12,7 +12,8 @@ import { story as geniusStory } from "./_lib/genius.js";
 const MB = "https://musicbrainz.org/ws/2";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export type Related = { kind: string; title: string; artist: string };
+export type Related = { kind: string; title: string; artist: string; art: string };
+export type Person = { name: string; role: string; image: string };
 export type Cover = {
   artist: string;
   title: string;
@@ -29,10 +30,18 @@ export type Tree = {
   label: string;
   /** What the song is about, in a sentence or two. */
   about: string;
-  /** What this recording was made out of: what it samples, what it is a cover of. */
-  from: Related[];
-  /** What was made out of it. */
-  into: Related[];
+  /** Everyone credited, and what each of them did. */
+  people: Person[];
+  /** The record this one is a cover, remix or live reading of. */
+  original: Related[];
+  /** Songs this one is built out of. */
+  uses: Related[];
+  /** Songs built out of this one. */
+  usedBy: Related[];
+  /** Other people's recordings of it, the ones with a page of their own. */
+  coveredBy: Related[];
+  /** Remixes and live readings that got their own page. */
+  versions: Related[];
   covers: Cover[];
   /** Everything on the work, including the live takes and medleys not listed. */
   coverCount: number;
@@ -59,6 +68,7 @@ function related(relations: any[], forward: boolean): Related[] {
       kind: String(r.type ?? "related"),
       title: other.title,
       artist: other["artist-credit"]?.[0]?.name ?? "",
+      art: "", // the catalogue has no pictures; only Genius brings those
     });
   }
   return out.slice(0, 8);
@@ -105,10 +115,11 @@ export function covers(relations: any[], performer: string, title: string): Cove
     .map(({ rank: _rank, ...cover }) => cover);
 }
 
-const asRelated = (l: { kind: string; title: string; artist: string }): Related => ({
+const asRelated = (l: { kind: string; title: string; artist: string; art?: string }): Related => ({
   kind: l.kind,
   title: l.title,
   artist: l.artist,
+  art: l.art ?? "",
 });
 
 /** Jay-Z's Holy Grail both samples this and interpolates it. It is still one row. */
@@ -235,18 +246,35 @@ export async function songTree(title: string, artist: string, isrc = ""): Promis
   ]);
   const about = page?.about ? firstLines(page.about) : "";
 
-  const from = once([...(page?.from ?? []).map(asRelated), ...related(cat.relations, true)], 6);
-  const into = once([...(page?.into ?? []).map(asRelated), ...related(cat.relations, false)], 6);
+  // Genius first — it ranks by how much people read about a thing, so the interpolation
+  // everybody knows comes before the one nobody has heard. The catalogue's own
+  // recording-level links come after, for the records Genius has never heard of.
+  const uses = once([...(page?.uses ?? []).map(asRelated), ...related(cat.relations, true)], 6);
+  const usedBy = once([...(page?.usedBy ?? []).map(asRelated), ...related(cat.relations, false)], 6);
+  const coveredBy = once((page?.coveredBy ?? []).map(asRelated), 6);
+  const original = once((page?.original ?? []).map(asRelated), 3);
+  const versions = once((page?.versions ?? []).map(asRelated), 4);
+  const people = page?.people ?? [];
 
   const value: Tree = {
-    found: Boolean(about) || from.length > 0 || into.length > 0 || cat.covers.length > 0,
+    found:
+      Boolean(about) ||
+      people.length > 0 ||
+      uses.length > 0 ||
+      usedBy.length > 0 ||
+      coveredBy.length > 0 ||
+      cat.covers.length > 0,
     title: cat.title || title,
     artist: cat.artist || artist,
     year: cat.year,
     label: cat.label,
     about,
-    from,
-    into,
+    people,
+    original,
+    uses,
+    usedBy,
+    coveredBy,
+    versions,
     covers: cat.covers,
     coverCount: cat.coverCount,
     source: cat.id ? `https://musicbrainz.org/recording/${cat.id}` : (page?.url ?? ""),

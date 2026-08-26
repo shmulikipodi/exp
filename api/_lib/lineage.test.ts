@@ -70,7 +70,7 @@ describe("covers", () => {
 });
 
 describe("once", () => {
-  const link = (kind: string, title: string, artist: string) => ({ kind, title, artist });
+  const link = (kind: string, title: string, artist: string) => ({ kind, title, artist, art: "" });
 
   it("shows a song once, under the first relationship it had", () => {
     // Jay-Z's Holy Grail both samples this song and interpolates it. Genius lists it

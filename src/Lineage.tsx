@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import type { Strings } from "./i18n";
 
-type Related = { kind: string; title: string; artist: string };
+type Related = { kind: string; title: string; artist: string; art: string };
+type Person = { name: string; role: string; image: string };
 type Cover = { artist: string; title: string; year: string; live: boolean; instrumental: boolean };
+
 type Tree = {
   found: boolean;
   title: string;
@@ -10,14 +12,16 @@ type Tree = {
   year: string;
   label: string;
   about: string;
-  from: Related[];
-  into: Related[];
+  people: Person[];
+  original: Related[];
+  uses: Related[];
+  usedBy: Related[];
+  coveredBy: Related[];
+  versions: Related[];
   covers: Cover[];
   coverCount: number;
   source: string;
 };
-
-const SHOWN = 8;
 
 const NOTHING: Tree = {
   found: false,
@@ -26,18 +30,24 @@ const NOTHING: Tree = {
   year: "",
   label: "",
   about: "",
-  from: [],
-  into: [],
+  people: [],
+  original: [],
+  uses: [],
+  usedBy: [],
+  coveredBy: [],
+  versions: [],
   covers: [],
   coverCount: 0,
   source: "",
 };
 
+const SHOWN = 6;
+
 /**
- * Where the song came from and what came out of it. The column used to hold the album
- * cover, which is a picture you are already looking at in the bar underneath — this is
- * the thing about a record you cannot see anywhere else, and every line in it is
- * somewhere you can go.
+ * Where the song came from and what came out of it, sorted into the questions someone
+ * actually asks: who made this, what is it built out of, what got built out of it, who
+ * else has sung it. The column used to be the album cover, which is a picture already
+ * sitting in the bar underneath.
  */
 export function Lineage({
   t,
@@ -74,20 +84,34 @@ export function Lineage({
     };
   }, [title, artist, isrc]);
 
-  const covers = tree?.covers ?? [];
-  const from = tree?.from ?? [];
-  const into = tree?.into ?? [];
-  const listed = all ? covers : covers.slice(0, SHOWN);
+  /** A song: its sleeve, whose it is, and what it has to do with the one playing. */
+  const songs = (heading: string, list: Related[]) =>
+    list.length === 0 ? null : (
+      <>
+        <p className="tree-head">{heading}</p>
+        <ul className="tree">
+          {list.map((r, i) => (
+            <li key={`${heading}-${i}`}>
+              <button title={t.treePlay} onClick={() => onPlay(`${r.artist} ${r.title}`)}>
+                {r.art ? (
+                  <img src={r.art} alt="" loading="lazy" />
+                ) : (
+                  <span className="tree-blank" aria-hidden="true" />
+                )}
+                <span className="tree-text">
+                  <b>{r.title}</b>
+                  <span>{r.artist}</span>
+                </span>
+                <span className="tree-note">{r.kind}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </>
+    );
 
-  const row = (key: string, who: string, what: string, note: string) => (
-    <li key={key}>
-      <button title={t.treePlay} onClick={() => onPlay(`${who} ${what}`)}>
-        <span className="tree-who">{who}</span>
-        <span className="tree-what">{what}</span>
-        {note && <span className="tree-note">{note}</span>}
-      </button>
-    </li>
-  );
+  const covers = tree?.covers ?? [];
+  const listed = all ? covers : covers.slice(0, SHOWN);
 
   return (
     <section className="lineage">
@@ -106,23 +130,35 @@ export function Lineage({
       {!tree && <p className="loading">{t.loading}</p>}
       {tree && !tree.found && <p className="help">{t.treeNone}</p>}
 
-      {from.length > 0 && (
+      {songs(t.treeOriginal, tree?.original ?? [])}
+
+      {(tree?.people?.length ?? 0) > 0 && (
         <>
-          <p className="tree-head">{t.treeFrom}</p>
-          <ul className="tree">
-            {from.map((r, i) => row(`f${i}`, r.artist || artist, r.title, r.kind))}
+          <p className="tree-head">{t.treeMakers}</p>
+          <ul className="tree people">
+            {tree!.people.map((p, i) => (
+              <li key={`${p.name}-${i}`}>
+                <span className="row">
+                  {p.image ? (
+                    <img src={p.image} alt="" loading="lazy" />
+                  ) : (
+                    <span className="tree-blank round" aria-hidden="true" />
+                  )}
+                  <span className="tree-text">
+                    <b>{p.name}</b>
+                    <span>{p.role}</span>
+                  </span>
+                </span>
+              </li>
+            ))}
           </ul>
         </>
       )}
 
-      {into.length > 0 && (
-        <>
-          <p className="tree-head">{t.treeInto}</p>
-          <ul className="tree">
-            {into.map((r, i) => row(`i${i}`, r.artist || artist, r.title, r.kind))}
-          </ul>
-        </>
-      )}
+      {songs(t.treeSamples, tree?.uses ?? [])}
+      {songs(t.treeSampledBy, tree?.usedBy ?? [])}
+      {songs(t.treeCoversOf, tree?.coveredBy ?? [])}
+      {songs(t.treeVersions, tree?.versions ?? [])}
 
       {covers.length > 0 && (
         <>
@@ -130,17 +166,21 @@ export function Lineage({
             {t.treeCovers}
             <span>{tree?.coverCount ?? covers.length}</span>
           </p>
-          <ul className="tree">
-            {listed.map((c, i) =>
-              row(
-                `c${i}`,
-                c.artist,
-                c.year || c.title,
-                [c.live ? t.treeLive : "", c.instrumental ? t.treeInstrumental : ""]
-                  .filter(Boolean)
-                  .join(" · "),
-              ),
-            )}
+          <ul className="tree plain">
+            {listed.map((c, i) => (
+              <li key={`c${i}`}>
+                <button title={t.treePlay} onClick={() => onPlay(`${c.artist} ${c.title}`)}>
+                  <span className="tree-text">
+                    <b>{c.artist}</b>
+                  </span>
+                  <span className="tree-note">
+                    {[c.year, c.live ? t.treeLive : "", c.instrumental ? t.treeInstrumental : ""]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </button>
+              </li>
+            ))}
           </ul>
           {covers.length > SHOWN && (
             <button className="link tree-more" onClick={() => setAll((v) => !v)}>

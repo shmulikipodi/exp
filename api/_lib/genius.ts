@@ -31,7 +31,8 @@ const headers = () => {
   };
 };
 
-export type Link = { kind: string; title: string; artist: string; weight: number };
+export type Link = { kind: string; title: string; artist: string; art: string; weight: number };
+export type Person = { name: string; role: string; image: string };
 export type Annotation = { line: string; note: string; votes: number };
 
 export type Story = {
@@ -42,10 +43,18 @@ export type Story = {
   producers: string[];
   recordedAt: string;
   released: string;
-  /** What it was made out of. */
-  from: Link[];
-  /** What was made out of it. */
-  into: Link[];
+  /** Everyone the page credits, and what each of them actually did. */
+  people: Person[];
+  /** Songs this one is built out of: what it samples, what it interpolates. */
+  uses: Link[];
+  /** Songs built out of this one. */
+  usedBy: Link[];
+  /** Other people's recordings of it. */
+  coveredBy: Link[];
+  /** If the track playing is itself a cover, the record it is a cover of. */
+  original: Link[];
+  /** Remixes, and the live readings that got their own page. */
+  versions: Link[];
   annotations: Annotation[];
   annotationCount: number;
 };
@@ -58,24 +67,33 @@ const NOTHING: Story = {
   producers: [],
   recordedAt: "",
   released: "",
-  from: [],
-  into: [],
+  people: [],
+  uses: [],
+  usedBy: [],
+  coveredBy: [],
+  original: [],
+  versions: [],
   annotations: [],
   annotationCount: 0,
 };
 
-const BACKWARD: Record<string, string> = {
-  samples: "samples",
-  interpolates: "interpolates",
-  cover_of: "is a cover of",
-  remix_of: "is a remix of",
-  live_version_of: "is a live version of",
+// A song's relatives, sorted into the four questions a listener actually asks: what is
+// this built out of, what got built out of it, who else has sung it, and — when the
+// thing playing is itself somebody else's song — whose was it first.
+const USES: Record<string, string> = { samples: "samples", interpolates: "interpolates" };
+const USED_BY: Record<string, string> = {
+  sampled_in: "samples this",
+  interpolated_by: "interpolates this",
 };
-const FORWARD: Record<string, string> = {
-  sampled_in: "sampled in",
-  interpolated_by: "interpolated by",
-  covered_by: "covered by",
-  remixed_by: "remixed by",
+const COVERED_BY: Record<string, string> = { covered_by: "covered it" };
+const ORIGINAL: Record<string, string> = {
+  cover_of: "the original",
+  remix_of: "remixes",
+  live_version_of: "live take of",
+};
+const VERSIONS: Record<string, string> = {
+  remixed_by: "remixed it",
+  performed_live_as: "played live as",
 };
 
 async function json(url: string, timeoutMs = 8000, tries = 2): Promise<any> {
@@ -132,6 +150,7 @@ export function rank(relationships: any[], map: Record<string, string>): Link[] 
         kind,
         title: String(song?.title ?? ""),
         artist: String(song?.primary_artist?.name ?? song?.artist_names ?? ""),
+        art: String(song?.song_art_image_thumbnail_url ?? ""),
         weight: Number(song?.stats?.pageviews ?? 0),
       });
     }
@@ -141,6 +160,56 @@ export function rank(relationships: any[], map: Record<string, string>): Link[] 
   // enough of them are things people actually read, the rest are not worth the room.
   const read = out.filter((l) => l.weight > 0);
   return (read.length >= 3 ? read : out).filter((l) => l.title).slice(0, 6);
+}
+
+/**
+ * Everyone credited, with the thing they actually did.
+ *
+ * Genius keeps three separate lists — the writers, the producers, and a free-form set
+ * of "custom performances" that is where the interesting entries live: Bass Guitar,
+ * Assistant Mixing Engineer, Mastered At. One person often appears in more than one of
+ * them, and a name with two roles is one line, not two.
+ */
+export function people(song: any): Person[] {
+  const byName = new Map<string, Person>();
+
+  const add = (name: string, role: string, image = "") => {
+    if (!name) return;
+    const key = name.toLowerCase();
+    const seen = byName.get(key);
+    if (!seen) {
+      byName.set(key, { name, role, image });
+      return;
+    }
+    if (image && !seen.image) seen.image = image;
+    if (role && !seen.role.toLowerCase().includes(role.toLowerCase())) {
+      seen.role = `${seen.role}, ${role.toLowerCase()}`;
+    }
+  };
+
+  for (const a of song?.writer_artists ?? []) add(a?.name, "Writer", a?.image_url);
+  for (const a of song?.producer_artists ?? []) add(a?.name, "Producer", a?.image_url);
+  for (const p of song?.custom_performances ?? []) {
+    for (const a of p?.artists ?? []) add(a?.name, String(p?.label ?? ""), a?.image_url);
+  }
+
+  // Publishers, labels and copyright lines are business, not creation.
+  const RIGHTS = /publish|copyright|℗|©|label|distribut|clearance/i;
+  // Roughly the order someone would want them: the ones who wrote and played it, then
+  // the ones who captured it, then the ones who filmed it.
+  const TIER = [
+    /writ|compos|lyric|produc|arrang|vocal|guitar|bass|drum|keyboard|piano|string|horn|sax|violin|cell|perform|feature/i,
+    /engineer|mix|master|record|studio|programm/i,
+  ];
+  const tier = (role: string) => {
+    const i = TIER.findIndex((rx) => rx.test(role));
+    return i < 0 ? TIER.length : i;
+  };
+
+  return [...byName.values()]
+    .filter((p) => !RIGHTS.test(p.role))
+    .sort((a, b) => tier(a.role) - tier(b.role))
+    .slice(0, 16);
 }
 
 const cache = new Map<string, { at: number; value: Story }>();
@@ -195,8 +264,12 @@ export async function story(title: string, artist: string): Promise<Story> {
     producers: (song.producer_artists ?? []).map((a: any) => String(a?.name ?? "")).filter(Boolean),
     recordedAt: String(song.recording_location ?? ""),
     released: String(song.release_date_for_display ?? ""),
-    from: rank(song.song_relationships, BACKWARD),
-    into: rank(song.song_relationships, FORWARD),
+    people: people(song),
+    uses: rank(song.song_relationships, USES),
+    usedBy: rank(song.song_relationships, USED_BY),
+    coveredBy: rank(song.song_relationships, COVERED_BY),
+    original: rank(song.song_relationships, ORIGINAL),
+    versions: rank(song.song_relationships, VERSIONS),
     annotations: annotations.slice(0, 10),
     annotationCount: Number(song.annotation_count ?? annotations.length),
   });
@@ -213,7 +286,14 @@ export function asEvidence(s: Story): string {
   if (s.recordedAt) lines.push(`Recorded at: ${s.recordedAt}`);
   if (s.released) lines.push(`Released: ${s.released}`);
 
-  const links = [...s.from, ...s.into];
+  if (s.people.length) {
+    lines.push(
+      `Credited, and what each did:\n` +
+        s.people.map((p) => `  - ${p.role}: ${p.name}`).join("\n"),
+    );
+  }
+
+  const links = [...s.original, ...s.uses, ...s.usedBy, ...s.coveredBy, ...s.versions];
   if (links.length) {
     lines.push(
       `Built from and built into, most-read first:\n` +

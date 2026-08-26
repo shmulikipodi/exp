@@ -176,6 +176,8 @@ export type Playing = {
   durationMs: number;
   progressMs: number;
   isPlaying: boolean;
+  /** The album, playlist or radio this track is playing inside, if any. */
+  contextUri?: string;
 };
 
 /** null = nothing is playing right now. */
@@ -209,6 +211,7 @@ export async function nowPlaying(): Promise<Playing | null> {
     durationMs: item.duration_ms ?? 0,
     progressMs: json.progress_ms ?? 0,
     isPlaying: Boolean(json.is_playing),
+    contextUri: json.context?.uri ?? "",
   };
 }
 
@@ -354,26 +357,65 @@ export async function transferTo(deviceId: string): Promise<ControlResult> {
 }
 
 /** Finds a track by name and plays it. The reader clicked a song; play the song. */
+async function findUri(query: string): Promise<string | null | "needs-reconnect"> {
+  const token = await accessToken();
+  const found = await fetch(
+    `https://api.spotify.com/v1/search?type=track&limit=1&q=${encodeURIComponent(query)}`,
+    { headers: { authorization: `Bearer ${token}` } },
+  );
+  if (found.status === 401) {
+    logout();
+    return "needs-reconnect";
+  }
+  if (!found.ok) return null;
+  return (await found.json())?.tracks?.items?.[0]?.uri ?? null;
+}
+
+/**
+ * Play something without throwing away what was already lined up.
+ *
+ * Handing Spotify a bare list of URIs replaces the context outright: the album or
+ * playlist you were in stops existing, and when the track ends there is nothing after
+ * it. Putting the track in the queue and skipping to it leaves the context alone, so
+ * the detour plays and then the record carries on where it was.
+ */
 export async function playSearch(query: string): Promise<ControlResult> {
   try {
-    const token = await accessToken();
-    const found = await fetch(
-      `https://api.spotify.com/v1/search?type=track&limit=1&q=${encodeURIComponent(query)}`,
-      { headers: { authorization: `Bearer ${token}` } },
-    );
-    if (found.status === 401) {
-      logout();
-      return "needs-reconnect";
-    }
-    if (!found.ok) return "failed";
-
-    const uri = (await found.json())?.tracks?.items?.[0]?.uri;
+    const uri = await findUri(query);
+    if (uri === "needs-reconnect") return "needs-reconnect";
     if (!uri) return "failed";
+
+    const queued = await control(`queue?uri=${encodeURIComponent(uri)}`, "POST");
+    if (queued !== "ok") return queued;
+    return await control("next", "POST");
+  } catch {
+    return "failed";
+  }
+}
+
+/**
+ * Back to what was playing before the detour, at the second it was interrupted.
+ * With a context to return to, Spotify restores the whole queue with it; without one
+ * the best available is the track on its own.
+ */
+export async function resumeAt(
+  contextUri: string,
+  trackId: string,
+  positionMs: number,
+): Promise<ControlResult> {
+  try {
+    const uri = `spotify:track:${trackId}`;
+    const body = contextUri
+      ? { context_uri: contextUri, offset: { uri }, position_ms: Math.max(0, Math.round(positionMs)) }
+      : { uris: [uri], position_ms: Math.max(0, Math.round(positionMs)) };
 
     const res = await fetch("https://api.spotify.com/v1/me/player/play", {
       method: "PUT",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-      body: JSON.stringify({ uris: [uri] }),
+      headers: {
+        authorization: `Bearer ${await accessToken()}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
     });
     if (res.ok || res.status === 204) return "ok";
     if (res.status === 404) return "no-device";

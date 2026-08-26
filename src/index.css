@@ -20,7 +20,10 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 16px/1.55 "Newsreader Variable", Georgia, serif;
+  /* The chosen set, not one particular set's face. This named Newsreader outright,
+     which is the default pairing's serif — so every element that inherits from body
+     stayed in it however the typeface picker was set, and half the app never changed. */
+  font: 16px/1.55 var(--serif);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }

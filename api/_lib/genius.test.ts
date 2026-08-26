@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickSong, rank } from "./genius.js";
+import { people, pickSong, rank } from "./genius.js";
 
 const hit = (id: number, title: string, artist: string) => ({
   result: { id, title, primary_artist: { name: artist } },
@@ -82,5 +82,42 @@ describe("rank", () => {
 
   it("ignores relationship types it was not asked for", () => {
     expect(rank([{ relationship_type: "translations", songs: [song("A", "B", 9)] }], map)).toEqual([]);
+  });
+});
+
+describe("people", () => {
+  const song = {
+    writer_artists: [{ name: "Kurt Cobain", image_url: "k.jpg" }],
+    producer_artists: [{ name: "Butch Vig", image_url: "b.jpg" }],
+    custom_performances: [
+      { label: "Bass Guitar", artists: [{ name: "Krist Novoselic" }] },
+      { label: "Arranger", artists: [{ name: "Butch Vig" }] },
+      { label: "Publisher", artists: [{ name: "Geffen Records" }] },
+      { label: "Assistant Engineer", artists: [{ name: "Jeff Sheehan" }] },
+      { label: "Video Editor", artists: [{ name: "Angus Wall" }] },
+    ],
+  };
+
+  it("gives one line per person, carrying everything they did", () => {
+    const list = people(song);
+    const vig = list.find((p) => p.name === "Butch Vig");
+    expect(vig?.role).toBe("Producer, arranger");
+    expect(vig?.image).toBe("b.jpg");
+    expect(list.filter((p) => p.name === "Butch Vig")).toHaveLength(1);
+  });
+
+  it("leaves out the publishers and the copyright lines", () => {
+    // Who owns a song is not who made it.
+    expect(people(song).map((p) => p.name)).not.toContain("Geffen Records");
+  });
+
+  it("puts the people who wrote and played it above the ones who filmed it", () => {
+    const names = people(song).map((p) => p.name);
+    expect(names.indexOf("Krist Novoselic")).toBeLessThan(names.indexOf("Jeff Sheehan"));
+    expect(names.indexOf("Jeff Sheehan")).toBeLessThan(names.indexOf("Angus Wall"));
+  });
+
+  it("says nothing rather than something when the page credits nobody", () => {
+    expect(people({})).toEqual([]);
   });
 });

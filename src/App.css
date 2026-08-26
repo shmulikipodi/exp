@@ -8,6 +8,10 @@
   --display: "Fraunces Variable", Georgia, serif;
   --serif: "Newsreader Variable", Georgia, serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  /* The plain voice: labels, names, rows. Used in four places and defined in none,
+     which makes `font: 15px var(--sans)` invalid and leaves the element in whatever it
+     inherited — the "some of it is still the old font" this was. */
+  --sans: "Archivo Variable", system-ui, -apple-system, sans-serif;
   /* Weight is part of the pairing, not an afterthought: the headline carries real mass
      and the reading text sits well below it. Everything was at 600 before, which is why
      the sets differed in shape but never in voice. */
@@ -23,6 +27,7 @@
    letterforms carry a 40px title and turn muddy at 19px, so note titles are set in
    Roboto Slab bold instead of shrinking the display face down to them. */
 :root[data-type="a"] {
+  --sans: "Archivo Variable", system-ui, sans-serif;
   --display: "Bevan", Georgia, serif;
   --serif: "Roboto Slab Variable", Georgia, serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -34,6 +39,7 @@
 
 /* B — magazine. Playfair at its heaviest is dramatic rather than merely large. */
 :root[data-type="b"] {
+  --sans: "Archivo Variable", system-ui, sans-serif;
   --display: "Playfair Display Variable", Georgia, serif;
   --serif: "Source Serif 4 Variable", Georgia, serif;
   --mono: "JetBrains Mono Variable", ui-monospace, Menlo, monospace;
@@ -43,6 +49,7 @@
 
 /* C — the fattest. A heavy grotesque headline against a serif drawn for long reading. */
 :root[data-type="c"] {
+  --sans: "Archivo Variable", system-ui, sans-serif;
   --display: "Archivo Variable", system-ui, sans-serif;
   --serif: "Literata Variable", Georgia, serif;
   --mono: "JetBrains Mono Variable", ui-monospace, Menlo, monospace;
@@ -52,6 +59,7 @@
 
 /* D — softer, still heavy. Bricolage has width as well as weight. */
 :root[data-type="d"] {
+  --sans: "Bricolage Grotesque Variable", system-ui, sans-serif;
   --display: "Bricolage Grotesque Variable", system-ui, sans-serif;
   --serif: "Lora Variable", Georgia, serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -71,6 +79,7 @@
    was never overridden at all, so every set fell back to the same system font.
    :root[dir=…][data-type=…] outranks :root[data-type=…] whatever the source order. */
 :root[dir="rtl"][data-type="a"] {
+  --sans: "Heebo Variable", Arial, sans-serif;
   /* Suez One is the nearest thing Hebrew has to Bevan: a heavy display serif, one
      weight, built to be large. Frank Ruhl Libre reads underneath it. */
   --display: "Suez One", Georgia, serif;
@@ -81,18 +90,21 @@
   --note-title-weight: 700;
 }
 :root[dir="rtl"][data-type="b"] {
+  --sans: "Heebo Variable", Arial, sans-serif;
   --display: "Heebo Variable", Arial, sans-serif;
   --serif: "Frank Ruhl Libre Variable", Georgia, serif;
   --display-weight: 900;
   --body-weight: 400;
 }
 :root[dir="rtl"][data-type="c"] {
+  --sans: "Rubik Variable", Arial, sans-serif;
   --display: "Rubik Variable", Arial, sans-serif;
   --serif: "Assistant Variable", Arial, sans-serif;
   --display-weight: 800;
   --body-weight: 350;
 }
 :root[dir="rtl"][data-type="d"] {
+  --sans: "Assistant Variable", Arial, sans-serif;
   --display: "Assistant Variable", Arial, sans-serif;
   --serif: "Heebo Variable", Arial, sans-serif;
   --display-weight: 800;
@@ -339,37 +351,64 @@ button.ghost:hover { color: var(--dim); background: none; }
 .tree { list-style: none; margin: 0; padding: 0; }
 .tree li { border-top: 1px solid var(--line); }
 .tree li:last-child { border-bottom: 1px solid var(--line); }
-/* Every row is somewhere to go: it plays that version. */
-.tree button {
+
+/* Every row is somewhere to go: it plays that version. The people are the exception —
+   a bass player is not a track, so their row is a row and not a button. */
+.tree button,
+.tree .row {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
   width: 100%;
-  padding: 8px 4px;
+  padding: 7px 4px;
   border: none;
   background: none;
   text-align: start;
   transition: background 0.15s;
 }
 .tree button:hover { background: rgba(243,237,227,0.06); }
-.tree-who {
-  flex: 1;
-  min-width: 0;
+
+.tree img,
+.tree-blank {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  object-fit: cover;
+  background: rgba(243,237,227,0.07);
+}
+.tree .people img,
+.tree-blank.round { border-radius: 50%; }
+
+.tree-text { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
+.tree-text b {
   font: 500 14px var(--sans);
   color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.tree button:hover .tree-who { color: var(--accent); }
-.tree-what { font: 11px var(--mono); color: var(--faint); flex-shrink: 0; }
+.tree-text > span {
+  font: 12px var(--sans);
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree button:hover .tree-text b { color: var(--accent); }
+
 .tree-note {
   font: 10px var(--mono);
   letter-spacing: 0.06em;
-  text-transform: uppercase;
+  text-transform: lowercase;
   color: var(--faint);
   flex-shrink: 0;
+  text-align: end;
 }
+
+/* The long tail of covers: names only, because forty sleeves is a contact sheet. */
+.tree.plain button { padding: 6px 4px; }
+
 .tree-more { margin-top: 10px; font: 12px var(--mono); color: var(--accent); }
 
 .column-foot {
@@ -526,7 +565,13 @@ button.ghost:hover { color: var(--dim); background: none; }
   transition: color 0.15s, background 0.15s, transform 0.12s;
 }
 .transport button:hover:not(:disabled) { color: var(--ink); background: rgba(243,237,227,0.09); }
-.transport button:active { transform: scale(0.94); }
+.transport button:active:not(:disabled) { transform: scale(0.94); }
+.transport button:disabled { opacity: 0.28; }
+
+/* The way back from a detour. Only there when there is somewhere to go back to, so it
+   never becomes another grey shape you learn to ignore. */
+.transport .back { color: var(--accent); }
+.transport .back:hover { background: hsl(var(--h) 62% 66% / 0.14); }
 
 .transport button.big {
   width: 66px;

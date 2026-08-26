@@ -6,6 +6,7 @@ import {
   trackDetails,
   next as skipNext,
   playSearch,
+  resumeAt,
   spotifySearchUrl,
   transferTo,
   pause,
@@ -245,6 +246,14 @@ export default function App() {
   const pullRef = useRef<(() => Promise<void>) | null>(null);
   const queuedRef = useRef<Awaited<ReturnType<typeof queueNext>>>(null);
   const lastManual = useRef(0);
+  // Where you were before a click in the family tree sent you somewhere else, so there
+  // is a way back to it — at the second it was interrupted, in the queue it came from.
+  const [detour, setDetour] = useState<{
+    contextUri: string;
+    id: string;
+    title: string;
+    positionMs: number;
+  } | null>(null);
 
   const t = STRINGS[lang];
 
@@ -1038,6 +1047,35 @@ export default function App() {
 
   // Every control funnels through here so the free-account and stale-scope cases are
   // handled once. Spotify answers 403 for both, and they need opposite responses.
+  // Spotify only refuses outright for a free account; everything else is a device
+  // problem the buttons can still try to solve.
+  const locked = canControl === false;
+
+  /** Go somewhere the family tree pointed, remembering where you were standing. */
+  const wander = useCallback(
+    (query: string) => {
+      const now = latest.current.playing;
+      if (now?.id) {
+        setDetour({
+          contextUri: now.contextUri ?? "",
+          id: now.id,
+          title: now.title,
+          positionMs: latest.current.progress ?? now.progressMs ?? 0,
+        });
+      }
+      run(() => playSearch(query));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const goBack = useCallback(() => {
+    const back = detour;
+    if (!back) return;
+    setDetour(null);
+    run(() => resumeAt(back.contextUri, back.id, back.positionMs));
+  }, [detour]);
+
   const run = useCallback(async (action: () => Promise<string>, optimistic?: () => void) => {
     const before = latest.current.playing;
     optimistic?.();
@@ -1320,7 +1358,7 @@ export default function App() {
               album={track.album}
               released={track.released}
               isrc={track.isrc}
-              onPlay={(query) => run(() => playSearch(query))}
+              onPlay={wander}
             />
           )}
 
@@ -1668,15 +1706,38 @@ export default function App() {
             </div>
 
             <div className="pb-mid">
-              {canControl !== false && !viewing && (
-                <div className="transport" dir="ltr">
-                  <button aria-label={t.prevTrack} onClick={() => run(skipPrev)}>
+              {/* Always here. It used to vanish the moment Spotify refused a command,
+                  which is how the controls "disappeared": a row of buttons that is not
+                  there tells you nothing, and a disabled one tells you why. */}
+              <div className="transport" dir="ltr">
+                  {detour && (
+                    <button
+                      className="back"
+                      title={t.backTo(detour.title)}
+                      aria-label={t.backTo(detour.title)}
+                      onClick={goBack}
+                    >
+                      <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+                        <path
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M9 5 3 11l6 6M3 11h10a7 7 0 0 1 0 14h-1"
+                        />
+                      </svg>
+                    </button>
+                  )}
+                  <button disabled={locked} aria-label={t.prevTrack} onClick={() => run(skipPrev)}>
                     <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
                       <path fill="currentColor" d="M7 6h2v12H7zm10 0v12l-8-6z" />
                     </svg>
                   </button>
                   <button
                     className="big"
+                    disabled={locked}
+                    title={locked ? controlNote || t.freeAccount : t.playPause}
                     aria-label={t.playPause}
                     onClick={() =>
                       run(
@@ -1696,6 +1757,7 @@ export default function App() {
                     )}
                   </button>
                   <button
+                    disabled={locked}
                     aria-label={t.nextTrack}
                     onClick={() =>
                       run(skipNext, () => {
@@ -1717,8 +1779,7 @@ export default function App() {
                       <path fill="currentColor" d="M15 6h2v12h-2zM7 6l8 6-8 6z" />
                     </svg>
                   </button>
-                </div>
-              )}
+              </div>
               <div className="pb-line">
                 <span className="pb-time">{mmss(progress)}</span>
                 <div
