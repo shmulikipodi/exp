@@ -1082,6 +1082,42 @@ body.dragging { cursor: col-resize; user-select: none; }
   to { opacity: 1; transform: none; }
 }
 
+/* The topics this record actually produced, as a row you can narrow the column with.
+   Same voice as the label on each note, because it is the same thing — the label tells
+   you what a note is, and the row lets you ask for only those. */
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 30px;
+  max-width: 30em;
+}
+.kinds button {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  font: 600 10px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.kinds button:hover { color: var(--ink); border-color: rgba(243,237,227,0.28); }
+.kinds button.on {
+  color: var(--ink);
+  border-color: currentColor;
+  background: rgba(243,237,227,0.06);
+}
+/* Each chip carries its note's colour, so the row is legible before it is read. */
+.kinds button.room, .kinds button.moment { color: #d9a05b; }
+.kinds button.sample, .kinds button.personnel { color: #7fb3d5; }
+.kinds button.afterlife { color: #b98cc9; }
+.kinds button.version { color: #8fbf9f; }
+.kinds button.lore { color: #c98b8b; }
+.kinds button.scene { color: #a8b06a; }
+.kinds button.trivia { color: #d98fb0; }
+
 .kind {
   display: inline-block;
   font: 600 10px var(--mono);
@@ -1095,6 +1131,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 .kind.afterlife { color: #b98cc9; }
 .kind.version { color: #8fbf9f; }
 .kind.lore { color: #c98b8b; }
+.kind.scene { color: #a8b06a; }
+.kind.trivia { color: #d98fb0; }
 
 .note h3 {
   font-family: var(--note-title);

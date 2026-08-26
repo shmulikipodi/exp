@@ -136,6 +136,15 @@ Note kinds, pick whichever the evidence actually supports:
                that turned it into someone else's record, something it is in the news
                for now. Name the version, the film, the year, the person
   lore       — what became of the band or its members. At most one per track
+  scene      — the world the record came out of and what it did to it: the city, the
+               club, the label, the rival band, the week it landed in. Not "it was
+               influential" — a named place, a named rival, a dated event
+  trivia     — the did-you-know. A famous person's stated favourite, a strange place it
+               has been played, a record it kept off number one, an animal or a
+               spacecraft named after it, a court that quoted it. It has to be TRUE and
+               attributable — a named person in a named interview, not "reportedly".
+               Small and delightful is the whole point; if it needs three sentences of
+               setting up it is not this
 
 "at" places a note at a moment in the recording. Give it as a timestamp inside the
 track's length — "2:07" — never a fraction or a percentage.
@@ -159,9 +168,38 @@ Return ONLY a JSON object, no markdown fence:
   "confidence": "high" | "low"
 }`;
 
+/** The note kinds the prompt defines. Nothing outside this list reaches it. */
+export const KINDS = [
+  "origin",
+  "room",
+  "personnel",
+  "sample",
+  "version",
+  "lyric",
+  "moment",
+  "afterlife",
+  "lore",
+  "scene",
+  "trivia",
+];
+
+/**
+ * The kind the reader asked for more of, or nothing.
+ *
+ * This value is written into the prompt, so it is matched against the enum rather than
+ * cleaned: a string that arrives from the page must never be able to carry an
+ * instruction of its own into the system prompt.
+ */
+export function focusKind(value: unknown): string {
+  const want = String(value ?? "").trim().toLowerCase();
+  return KINDS.includes(want) ? want : "";
+}
+
 type Body = {
   mode?: "notes" | "more" | "ask" | "artist" | "album";
   have?: { title: string; body: string }[];
+  /** With "more": the one kind of note the reader wants three more of. */
+  focus?: string;
   rejected?: string[];
   question?: string;
   artist?: string;
@@ -713,6 +751,7 @@ export default async function handler(req: any, res: any) {
     const told = (body.told ?? []).filter(Boolean).slice(-30);
 
     const already = (body.have ?? []).filter((n) => n?.title);
+    const focus = focusKind(body.focus);
     const rejected = (body.rejected ?? []).filter(Boolean);
 
     const user =
@@ -741,6 +780,13 @@ export default async function handler(req: any, res: any) {
         ? `These notes have already been written. Write THREE MORE on ground they do not ` +
           `cover — different kinds, different parts of the story. Do not restate or ` +
           `rephrase them:\n${already.map((n) => `- ${n.title}: ${n.body}`).join("\n")}\n\n` +
+          (focus
+            ? `The reader has asked for more of one kind in particular: "${focus}". Write ` +
+              `all three as that kind if the evidence supports three, fewer if it does ` +
+              `not. Everything above still applies — a dull note of the right kind is ` +
+              `still a dull note, and padding to reach three is worse than returning one. ` +
+              `Do not relabel a note of another kind to satisfy this.\n\n`
+            : "") +
           `Return the same JSON shape containing only the new notes. Set headline to "" ` +
           `and thread to null. If there is genuinely nothing more worth saying about this ` +
           `recording, return an empty notes array rather than padding.`

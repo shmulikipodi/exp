@@ -237,6 +237,8 @@ export default function App() {
   const [busy, setBusy] = useState("");
   const [askingAbout, setAskingAbout] = useState<string | null>(null);
   const [draftQ, setDraftQ] = useState("");
+  // One kind of note at a time, when you want it. Empty means all of them.
+  const [onlyKind, setOnlyKind] = useState("");
 
   const history = useRef<string[]>([]);
   const fetchedFor = useRef<string>("");
@@ -712,10 +714,24 @@ export default function App() {
 
   const fraction = track?.durationMs ? Math.min(1, progress / track.durationMs) : 0;
   const times = useMemo(() => (activeNotes ? schedule(activeNotes.notes) : []), [activeNotes]);
+  // The kinds this track actually produced, in the order the notes arrived — a filter
+  // row offering nine topics when the record only has four is a menu of dead ends.
+  const kindsHere = useMemo(() => {
+    const seen: string[] = [];
+    for (const n of activeNotes?.notes ?? []) {
+      if (n.kind && !seen.includes(n.kind)) seen.push(n.kind);
+    }
+    return seen;
+  }, [activeNotes]);
+
   const shown = activeNotes
-    ? activeNotes.notes.filter((_, i) => openAll || times[i] <= fraction)
+    ? activeNotes.notes.filter(
+        (n, i) => (openAll || times[i] <= fraction) && (!onlyKind || n.kind === onlyKind),
+      )
     : [];
-  const pending = activeNotes ? activeNotes.notes.length - shown.length : 0;
+  const pending = activeNotes
+    ? activeNotes.notes.filter((_, i) => !(openAll || times[i] <= fraction)).length
+    : 0;
   const nextAt = activeNotes
     ? times.filter((t) => t > fraction).sort((a, b) => a - b)[0]
     : undefined;
@@ -871,6 +887,9 @@ export default function App() {
       const data = await post<Notes>({
         ...subject(),
         mode: "more",
+        // Reading one kind and asking for more means more of that kind, not more of
+        // everything — the button is where you already are.
+        focus: onlyKind,
         have: current.notes.map((n) => ({ title: n.title, body: n.body })),
         rejected: current.rejected ?? [],
         wide,
@@ -880,7 +899,7 @@ export default function App() {
         (n) => !current.notes.some((existing) => existing.title === n.title),
       );
       if (fresh.length === 0) {
-        setError(t.nothingMore);
+        setError(onlyKind ? t.noneOfKind : t.nothingMore);
       } else {
         persist({ ...current, notes: [...current.notes, ...fresh] }, target);
         setRevealAll(true);
@@ -890,7 +909,7 @@ export default function App() {
     } finally {
       setBusy("");
     }
-  }, [current, subject, persist, targetOf, t]);
+  }, [current, subject, persist, targetOf, t, onlyKind, wide]);
 
   // Marking a note wrong removes it and records why, so a later regeneration is told
   // not to produce it again. The record of what it got wrong is the valuable half.
@@ -1418,6 +1437,26 @@ export default function App() {
 
             {activeNotes && (
               <>
+                {kindsHere.length > 1 && (
+                  <div className="kinds" role="group">
+                    <button
+                      className={onlyKind ? "" : "on"}
+                      onClick={() => setOnlyKind("")}
+                    >
+                      {t.allKinds}
+                    </button>
+                    {kindsHere.map((k) => (
+                      <button
+                        key={k}
+                        className={`${k}${onlyKind === k ? " on" : ""}`}
+                        onClick={() => setOnlyKind(onlyKind === k ? "" : k)}
+                      >
+                        {t.kinds[k] ?? k}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {activeNotes.headline && (
                   <p className="headline">
                     <Linked
@@ -1581,7 +1620,11 @@ export default function App() {
                 <div className="conversation">
                   <div className="row">
                     <button onClick={askMore} disabled={busy === "more"}>
-                      {busy === "more" ? t.thinking : t.moreNotes}
+                      {busy === "more"
+                        ? t.thinking
+                        : onlyKind
+                          ? t.moreOf(t.kinds[onlyKind] ?? onlyKind)
+                          : t.moreNotes}
                     </button>
                     <button
                       className={`toggle${wide ? " on" : ""}`}
