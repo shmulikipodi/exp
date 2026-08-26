@@ -128,3 +128,70 @@ export function weave<N extends Placeable>(
 
   return notes.map((note, i) => ({ kind: "note" as const, note, index: i }));
 }
+
+// ---------------------------------------------------------------------------
+// The shape of a record, worked out from the words.
+
+export type Section = { label: "intro" | "verse" | "chorus" | "instrumental" | "outro"; at: number; to: number };
+
+/** A silence this long between sung lines ends one block of words and starts another. */
+const BREAK = 7;
+/** A silence this long is a passage in its own right — an intro, a solo, an outro.
+ *  Between a verse and a chorus there is often ten seconds of nobody singing, and
+ *  calling that a solo would put a lie in the middle of the map. */
+const PASSAGE = 13;
+
+const bare = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+/**
+ * Where the verses are, which lines are the chorus, and where nobody is singing.
+ *
+ * Synced lyrics already contain the structure of a record; nobody just reads it out.
+ * Lines that come in a run are a block, a long silence between blocks is a passage
+ * with no words in it — the intro, a solo, the outro — and a block whose words turn up
+ * again later is the chorus, because that is what a chorus is.
+ *
+ * No model, no extra request, and it works on any song anyone has bothered to sync.
+ */
+export function shape(lines: LyricLine[], durationMs: number): Section[] {
+  const seconds = durationMs / 1000;
+  if (lines.length < 2 || seconds <= 0) return [];
+
+  // Runs of lines with no long silence inside them.
+  const blocks: { from: number; to: number; text: string }[] = [];
+  let start = 0;
+  for (let i = 1; i <= lines.length; i++) {
+    const broke = i === lines.length || lines[i].at - lines[i - 1].at > BREAK;
+    if (!broke) continue;
+    const words = lines.slice(start, i).map((l) => bare(l.text)).filter(Boolean);
+    if (words.length > 0) {
+      blocks.push({ from: lines[start].at, to: lines[i - 1].at, text: words.join(" | ") });
+    }
+    start = i;
+  }
+  if (blocks.length === 0) return [];
+
+  // A block whose words appear more than once is the chorus. Compared whole rather
+  // than line by line: a single repeated line is a refrain, not a section.
+  const seen = new Map<string, number>();
+  for (const b of blocks) seen.set(b.text, (seen.get(b.text) ?? 0) + 1);
+
+  const out: Section[] = [];
+  const add = (label: Section["label"], at: number, to: number) => {
+    if (to - at < 1.5) return; // too short to be a place you would ever go
+    out.push({ label, at, to });
+  };
+
+  if (blocks[0].from > PASSAGE) add("intro", 0, blocks[0].from);
+
+  blocks.forEach((b, i) => {
+    add((seen.get(b.text) ?? 0) > 1 ? "chorus" : "verse", b.from, b.to);
+    const next = blocks[i + 1];
+    if (next && next.from - b.to > PASSAGE) add("instrumental", b.to, next.from);
+  });
+
+  const last = blocks[blocks.length - 1];
+  if (seconds - last.to > PASSAGE) add("outro", last.to, seconds);
+
+  return out;
+}

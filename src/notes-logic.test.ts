@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MIN_NOTES, dividerWidth, grabOffset, matchesLang, weave } from "./notes-logic";
+import { MIN_NOTES, dividerWidth, grabOffset, matchesLang, shape, weave } from "./notes-logic";
 
 const note = (body: string) => ({ body });
 
@@ -116,5 +116,74 @@ describe("weave", () => {
   it("does not lose a note whose moment lands after the last line", () => {
     const woven = weave([at(90)], lines, 100_000);
     expect(woven[woven.length - 1].kind).toBe("note");
+  });
+});
+
+describe("shape", () => {
+  const verse1 = [
+    { at: 26, text: "Load up on guns" },
+    { at: 29, text: "It's fun to lose" },
+  ];
+  const chorus = [
+    { at: 40, text: "Here we are now" },
+    { at: 43, text: "Entertain us" },
+  ];
+  const verse2 = [
+    { at: 70, text: "I'm worse at what I do best" },
+    { at: 73, text: "And for this gift I feel blessed" },
+  ];
+  const chorusAgain = [
+    { at: 90, text: "Here we are now" },
+    { at: 93, text: "Entertain us" },
+  ];
+
+  it("calls the words that come back the chorus", () => {
+    const found = shape([...verse1, ...chorus, ...verse2, ...chorusAgain], 120_000);
+    const labels = found.map((s) => s.label);
+    expect(labels.filter((l) => l === "chorus")).toHaveLength(2);
+    expect(labels.filter((l) => l === "verse")).toHaveLength(2);
+  });
+
+  it("finds the intro before the first word", () => {
+    const [first] = shape([...verse1, ...chorus], 90_000);
+    expect(first).toMatchObject({ label: "intro", at: 0, to: 26 });
+  });
+
+  it("finds the passage where nobody is singing", () => {
+    // Twenty-seven seconds between the chorus ending and the next verse: a solo.
+    const found = shape([...verse1, ...chorus, ...verse2], 120_000);
+    const solos = found.filter((s) => s.label === "instrumental");
+    expect(solos).toEqual([{ label: "instrumental", at: 43, to: 70 }]);
+  });
+
+  it("does not call the ten seconds between a verse and a chorus a solo", () => {
+    // Blocks still separate there — it is a different section — but eleven seconds of
+    // nobody singing is how songs change gear, not a passage worth its own row.
+    const found = shape([...verse1, ...chorus], 90_000);
+    expect(found.filter((s) => s.label === "instrumental")).toEqual([]);
+  });
+
+  it("finds the outro when the record runs on after the last line", () => {
+    const found = shape([...verse1, ...chorus], 120_000);
+    expect(found[found.length - 1]).toMatchObject({ label: "outro", to: 120 });
+  });
+
+  it("says nothing rather than guessing when there are no synced words", () => {
+    expect(shape([], 200_000)).toEqual([]);
+    expect(shape([{ at: 3, text: "one line" }], 200_000)).toEqual([]);
+  });
+
+  it("does not call a single repeated line a chorus", () => {
+    // One line coming back is a refrain. A chorus is a block of them.
+    const found = shape(
+      [
+        { at: 10, text: "hey" },
+        { at: 13, text: "first verse here" },
+        { at: 30, text: "hey" },
+        { at: 33, text: "second verse here" },
+      ],
+      60_000,
+    );
+    expect(found.filter((s) => s.label === "chorus")).toHaveLength(0);
   });
 });

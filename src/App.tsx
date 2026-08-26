@@ -1316,7 +1316,11 @@ export default function App() {
               album={track.album}
               released={track.released}
               isrc={track.isrc}
+              lines={lyrics}
+              durationMs={track.durationMs}
+              progressMs={progress}
               onPlay={wander}
+              onSeek={(ms) => run(() => seek(ms), () => setProgress(ms))}
             />
           ) : phone ? (
             <section className="sleeve">

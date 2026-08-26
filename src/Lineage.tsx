@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { Strings } from "./i18n";
+import { shape, type LyricLine } from "./notes-logic";
 
 type Related = { kind: string; title: string; artist: string; art: string };
 type Person = { name: string; role: string; image: string };
@@ -56,7 +57,11 @@ export function Lineage({
   album,
   released,
   isrc,
+  lines,
+  durationMs,
+  progressMs,
   onPlay,
+  onSeek,
 }: {
   t: Strings;
   title: string;
@@ -64,7 +69,11 @@ export function Lineage({
   album: string;
   released?: string;
   isrc?: string;
+  lines: LyricLine[] | null;
+  durationMs: number;
+  progressMs: number;
   onPlay: (query: string) => void;
+  onSeek: (ms: number) => void;
 }) {
   const [tree, setTree] = useState<Tree | null>(null);
   const [all, setAll] = useState(false);
@@ -92,7 +101,7 @@ export function Lineage({
         <ul className="tree">
           {list.map((r, i) => (
             <li key={`${heading}-${i}`}>
-              <button title={t.treePlay} onClick={() => onPlay(`${r.artist} ${r.title}`)}>
+              <button title={t.hearIt} onClick={() => onPlay(`${r.artist} ${r.title}`)}>
                 {r.art ? (
                   <img src={r.art} alt="" loading="lazy" />
                 ) : (
@@ -103,12 +112,24 @@ export function Lineage({
                   <span>{r.artist}</span>
                 </span>
                 <span className="tree-note">{r.kind}</span>
+                {/* Clicking plays it and the transport grows a way back, so a detour
+                    costs you nothing — that is the whole point of the row. */}
+                <span className="tree-go" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="13" height="13">
+                    <path fill="currentColor" d="M8 5l11 7-11 7z" />
+                  </svg>
+                </span>
               </button>
             </li>
           ))}
         </ul>
       </>
     );
+
+  // The structure of the record, read straight off the synced words. No request, no
+  // model — a chorus is a block of words that comes back, and that is knowable.
+  const built = shape(lines ?? [], durationMs);
+  const here = progressMs / 1000;
 
   const covers = tree?.covers ?? [];
   const listed = all ? covers : covers.slice(0, SHOWN);
@@ -131,6 +152,28 @@ export function Lineage({
       {tree && !tree.found && <p className="help">{t.treeNone}</p>}
 
       {songs(t.treeOriginal, tree?.original ?? [])}
+
+      {built.length > 1 && (
+        <>
+          <p className="tree-head">{t.shapeTitle}</p>
+          <ol className="shape">
+            {built.map((part, i) => (
+              <li
+                key={i}
+                className={`${part.label}${here >= part.at && here < part.to ? " now" : ""}`}
+                style={{ "--len": part.to - part.at } as React.CSSProperties}
+              >
+                <button onClick={() => onSeek(part.at * 1000)}>
+                  <span>{t.sections[part.label] ?? part.label}</span>
+                  <span className="when">
+                    {Math.floor(part.at / 60)}:{String(Math.floor(part.at % 60)).padStart(2, "0")}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
 
       {(tree?.people?.length ?? 0) > 0 && (
         <>
