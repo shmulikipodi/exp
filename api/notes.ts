@@ -160,16 +160,26 @@ track's length — "2:07" — never a fraction or a percentage.
 - "atBasis" is "documented" when the time came from the evidence, "estimated" when you
   worked it out yourself.
 
+Every note carries "from": where you actually got it. One of exactly these:
+  "genius" | "musicbrainz" | "wikipedia" | "podcast" | "news" | "search" | "memory"
+Name the source the fact came from, not the one you would like to cite. "memory" is the
+honest answer when it was not in front of you, and it is the answer the reader most
+needs — it tells them which notes to check. Do not write "memory" on something the
+evidence gave you, and do not write a source on something it did not.
+
 Return ONLY a JSON object, no markdown fence:
 {
   "headline": "one sentence naming what this record actually is, the way someone who knows it would say it to a friend. Not a summary. Not praise.",
-  "notes": [{ "kind": "origin", "at": null, "atBasis": null, "title": "four to seven words", "body": "one to three sentences" }],
+  "notes": [{ "kind": "origin", "at": null, "atBasis": null, "from": "genius", "title": "four to seven words", "body": "one to three sentences" }],
   "questions": ["three short questions THIS record invites and you have not already answered above — the thing a listener would actually wonder having heard it. Specific to this song, never generic. Six to ten words each."],
   "thread": "one sentence connecting this song to the listed recent tracks — a shared producer, player, sample, city, year, label or lineage. Only if a real connection exists. Otherwise null.",
   "confidence": "high" | "low"
 }`;
 
 const DEPTHS = ["brief", "normal", "deep"];
+
+/** Where a note came from. "memory" is the one the reader most needs to see. */
+const FROMS = ["genius", "musicbrainz", "wikipedia", "podcast", "news", "search", "memory"];
 
 /** How much to write, as an instruction rather than a number the model can drift past. */
 const HOW_MUCH: Record<string, string> = {
@@ -838,6 +848,10 @@ export default async function handler(req: any, res: any) {
         kind: String(n.kind ?? "origin"),
         at,
         atBasis: at === null ? null : n.atBasis === "documented" ? "documented" : "estimated",
+        // Which source it came from, or nothing rather than a made-up one.
+        from: FROMS.includes(String(n.from ?? "").toLowerCase())
+          ? String(n.from).toLowerCase()
+          : "",
         title: String(n.title ?? "")
           .replace(LINK, "$2")
           .trim(),

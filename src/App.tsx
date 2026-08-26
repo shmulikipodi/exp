@@ -53,6 +53,8 @@ type Note = {
   kind: string;
   at: number | null;
   atBasis?: "documented" | "estimated" | "heard" | null;
+  /** Which source the fact came from, "memory" when none was in front of the model. */
+  from?: string;
   title: string;
   body: string;
 };
@@ -1109,6 +1111,45 @@ export default function App() {
     [playing, run],
   );
 
+  // The keys a record deserves: space stops it, the arrows move through it, "/" starts
+  // a question, escape puts the whole column back. Never while you are typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) {
+        if (e.key === "Escape") el.blur();
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const p = latest.current.playing;
+
+      if (e.key === " ") {
+        if (!p) return;
+        e.preventDefault();
+        run(
+          p.isPlaying ? pause : play,
+          () => setPlaying((was) => (was ? { ...was, isPlaying: !was.isPlaying } : was)),
+        );
+      } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        if (!p?.durationMs) return;
+        e.preventDefault();
+        const step = e.shiftKey ? 30_000 : 10_000;
+        const to = Math.min(
+          p.durationMs,
+          Math.max(0, latest.current.progress + (e.key === "ArrowRight" ? step : -step)),
+        );
+        run(() => seek(to), () => setProgress(to));
+      } else if (e.key === "/") {
+        e.preventDefault();
+        document.querySelector<HTMLInputElement>(".conversation .ask input")?.focus();
+      } else if (e.key === "Escape") {
+        setOnlyKind("");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [run]);
+
   const openArtist = useCallback((query: string) => {
     window.open(spotifySearchUrl(query, "artist"), "_blank", "noreferrer");
   }, []);
@@ -1541,6 +1582,24 @@ export default function App() {
                       />
                     </p>
 
+                    {n.from && (
+                      <p className={`whence${n.from === "memory" ? " unsourced" : ""}`}>
+                        {(() => {
+                          const label = t.froms[n.from] ?? n.from;
+                          const page = (activeNotes.sources ?? []).find(([, name]) =>
+                            name.toLowerCase().includes(n.from!.slice(0, 6)),
+                          );
+                          return page ? (
+                            <a href={page[0]} target="_blank" rel="noreferrer">
+                              {label}
+                            </a>
+                          ) : (
+                            label
+                          );
+                        })()}
+                      </p>
+                    )}
+
                     <div className="note-actions">
                       <button
                         onClick={() => {
@@ -1555,6 +1614,17 @@ export default function App() {
                           {t.setHere}
                         </button>
                       )}
+                      {/* The question a reader actually has about a surprising note,
+                          asked in one click instead of typed out. */}
+                      <button
+                        disabled={busy !== ""}
+                        onClick={() => {
+                          setAskingAbout(null);
+                          ask(t.howKnow, n);
+                        }}
+                      >
+                        {t.howKnowLabel}
+                      </button>
                       <button className="reject" onClick={() => rejectNote(n)}>
                         {t.markWrong}
                       </button>
