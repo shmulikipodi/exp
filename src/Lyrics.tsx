@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Strings } from "./i18n";
 import { Wash } from "./Wash";
-import { LyricLines, scrollToLine, type Line } from "./LyricLines";
+import { LyricLines, isReading, scrollToLine, useReading, type Line } from "./LyricLines";
 import { paletteFrom, type Swatch } from "./palette";
 
 type Loaded = { found: boolean; synced: boolean; lines: Line[]; plain: string };
@@ -66,8 +66,10 @@ export function Lyrics({
     ? state.lines.reduce((found, line, i) => (line.at <= seconds ? i : found), -1)
     : -1;
 
+  const reading = useReading();
   useEffect(() => {
     if (active < 0) return;
+    if (isReading(reading)) return;
     scrollToLine(
       document.querySelector(".lyric-full-body"),
       document.querySelector(`.lyric-full [data-l="${active}"]`),

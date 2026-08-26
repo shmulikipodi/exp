@@ -1,33 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { MIN_NOTES, dividerWidth, grabOffset, matchesLang, schedule } from "./notes-logic";
+import { MIN_NOTES, dividerWidth, grabOffset, matchesLang } from "./notes-logic";
 
 const note = (body: string) => ({ body });
-
-describe("schedule", () => {
-  it("keeps a note's own timestamp", () => {
-    expect(schedule([{ at: 0.42 }])).toEqual([0.42]);
-  });
-
-  it("puts a note with no moment at the very start", () => {
-    expect(schedule([{ at: null }])).toEqual([0]);
-  });
-
-  it("leaves every general note available immediately", () => {
-    expect(schedule([{ at: null }, { at: null }, { at: null }])).toEqual([0, 0, 0]);
-  });
-
-  it("does not move a timed note to make room for untimed ones", () => {
-    expect(schedule([{ at: null }, { at: 0.8 }, { at: null }])).toEqual([0, 0.8, 0]);
-  });
-
-  it("keeps timed notes in whatever order the track puts them", () => {
-    expect(schedule([{ at: 0.9 }, { at: 0.2 }])).toEqual([0.9, 0.2]);
-  });
-
-  it("handles an empty set", () => {
-    expect(schedule([])).toEqual([]);
-  });
-});
 
 describe("matchesLang", () => {
   const hebrew = { headline: "כותרת", notes: [note("גוף ההערה"), note("עוד עברית")] };

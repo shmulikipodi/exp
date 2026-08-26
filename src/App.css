@@ -854,6 +854,12 @@ button.ghost:hover { color: var(--dim); background: none; }
 }
 .lyric-line.plain { white-space: pre-wrap; opacity: 0.85; filter: none; font-size: 20px; }
 
+/* Scrolling means reading, and blurred text cannot be read. Every line comes into
+   focus while the reader has the column; the one being sung stays brightest so the
+   place is not lost. */
+.reading .lyric-line { filter: none; opacity: 0.78; }
+.reading .lyric-line.now { opacity: 1; }
+
 /* A four-line lyric on a tall screen looks lost; a hundred-line one needs the room.
    Nothing to do about that in CSS, but the first and last lines can at least scroll
    to the middle, which is where the focus is. */

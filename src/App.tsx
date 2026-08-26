@@ -24,7 +24,7 @@ import {
 } from "./spotify";
 import { STRINGS, storedLang, storeLang, type Lang } from "./i18n";
 import { accentFrom, paletteFrom, type Swatch } from "./palette";
-import { dividerWidth, grabOffset, matchesLang, schedule } from "./notes-logic";
+import { dividerWidth, grabOffset, matchesLang } from "./notes-logic";
 import { Keys, liveKeys } from "./Keys";
 import { onPlayer, startPlayer, type PlayerState } from "./player";
 import { History } from "./History";
@@ -194,7 +194,6 @@ export default function App() {
   const [notes, setNotes] = useState<Notes | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [revealAll, setRevealAll] = useState(false);
   const [accent, setAccent] = useState<string | null>(null);
   const [palette, setPalette] = useState<Swatch[]>([]);
   const [showKeys, setShowKeys] = useState(false);
@@ -589,7 +588,6 @@ export default function App() {
     const key = `${playing.id}:${lang}`;
     if (key === fetchedFor.current) return;
     fetchedFor.current = key;
-    setRevealAll(false);
 
     const stamp = `${playing.artists.join(", ")} — ${playing.title}`;
     const recent = history.current.slice(0, 5);
@@ -710,10 +708,8 @@ export default function App() {
       }
     : playing;
   const activeNotes = viewing ? viewing.notes : notes;
-  const openAll = revealAll || Boolean(viewing);
 
   const fraction = track?.durationMs ? Math.min(1, progress / track.durationMs) : 0;
-  const times = useMemo(() => (activeNotes ? schedule(activeNotes.notes) : []), [activeNotes]);
   // The kinds this track actually produced, in the order the notes arrived — a filter
   // row offering nine topics when the record only has four is a menu of dead ends.
   const kindsHere = useMemo(() => {
@@ -724,17 +720,13 @@ export default function App() {
     return seen;
   }, [activeNotes]);
 
+  // Every note, from the moment they arrive. They used to appear as the record reached
+  // the second each one described, which turned reading into waiting — the timings are
+  // still on the bar and on the jump buttons, they just no longer decide what you may
+  // read. The only thing that hides a note now is you asking for one topic.
   const shown = activeNotes
-    ? activeNotes.notes.filter(
-        (n, i) => (openAll || times[i] <= fraction) && (!onlyKind || n.kind === onlyKind),
-      )
+    ? activeNotes.notes.filter((n) => !onlyKind || n.kind === onlyKind)
     : [];
-  const pending = activeNotes
-    ? activeNotes.notes.filter((_, i) => !(openAll || times[i] <= fraction)).length
-    : 0;
-  const nextAt = activeNotes
-    ? times.filter((t) => t > fraction).sort((a, b) => a - b)[0]
-    : undefined;
 
   // Apple-Music-lyrics focus: whatever sits nearest the middle of the column is sharp,
   // everything else softens with distance. Written straight to the DOM because this
@@ -815,19 +807,6 @@ export default function App() {
     };
   }, [activeNotes, shown.length]);
 
-  // A newly revealed note walks itself into focus, unless the reader is browsing.
-  useEffect(() => {
-    const el = streamRef.current;
-    if (!el || shown.length === 0 || openAll) return;
-    if (Date.now() - lastManual.current < 8000) return;
-    // On a phone the sleeve owns the first screen. Auto-centring would scroll straight
-    // past it and collapse the picture before it has been seen, so it waits until the
-    // reader has scrolled into the notes themselves.
-    if (window.innerWidth <= 900 && el.scrollTop < window.innerWidth * 0.72) return;
-    const nodes = el.querySelectorAll<HTMLElement>(".note");
-    nodes[nodes.length - 1]?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [shown.length, revealAll]);
-
   // Notes are no longer a finished document — they can grow, shrink and be questioned.
   // Every change is written straight back to storage, so it survives the track change.
   /** The track an in-flight question belongs to, captured when it is asked. */
@@ -902,7 +881,6 @@ export default function App() {
         setError(onlyKind ? t.noneOfKind : t.nothingMore);
       } else {
         persist({ ...current, notes: [...current.notes, ...fresh] }, target);
-        setRevealAll(true);
       }
     } catch (e) {
       setError((e as Error).message);
@@ -1664,18 +1642,6 @@ export default function App() {
                     </button>
                   </form>
                 </div>
-
-                {pending > 0 && (
-                  <div className="pending">
-                    <span>
-                      {t.more(pending)}
-                      {nextAt !== undefined && track.durationMs
-                        ? t.nextAt(mmss(nextAt * track.durationMs))
-                        : ""}
-                    </span>
-                    <button onClick={() => setRevealAll(true)}>{t.revealAll}</button>
-                  </div>
-                )}
 
                 <footer>
                   {activeNotes.confidence === "low" && <p className="warn">{t.lowConfidence}</p>}

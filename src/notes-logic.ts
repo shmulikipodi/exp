@@ -1,23 +1,10 @@
-// The pure parts of how notes behave: when each one surfaces, and whether a stored set
-// is in the language it claims to be. Extracted so they can be tested without a browser.
+// The pure parts of how the app behaves: whether a stored set of notes is in the
+// language it claims to be, and where a dragged divider should put a column. Extracted
+// so they can be tested without a browser.
 
 import type { Lang } from "./i18n";
 
-export type TimedNote = { at: number | null };
 export type LangCheckable = { headline: string; notes: { body: string }[] };
-
-/**
- * Where each note belongs on the track.
- *
- * A note about a moment in the recording sits at that moment. Everything else — who
- * produced it, what it samples, what happened afterwards — is true of the whole record
- * and is available from the start. Spreading those through the song implied a
- * relationship to the music that was never there: a note about a lawsuit in 1994 would
- * surface two minutes in, as though something at two minutes had caused it.
- */
-export function schedule(notes: TimedNote[]): number[] {
-  return notes.map((n) => (n.at === null ? 0 : n.at));
-}
 
 /**
  * Cached notes can be in the wrong language — anything written in Hebrew before the

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Strings } from "./i18n";
-import { LyricLines, scrollToLine, type Line } from "./LyricLines";
+import { LyricLines, isReading, scrollToLine, useReading, type Line } from "./LyricLines";
 import {
   albumProfile,
   artistProfile,
@@ -125,8 +125,12 @@ export function Rail({
   const seconds = progressMs / 1000;
   const active = lines ? lines.reduce((f, l, i) => (l.at <= seconds ? i : f), -1) : -1;
 
+  const reading = useReading();
   useEffect(() => {
     if (!modes.includes("lyrics") || active < 0) return;
+    // Hands off while the reader is scrolling: nothing is more annoying than a column
+    // that pulls itself back four seconds after you moved it.
+    if (isReading(reading)) return;
     scrollToLine(
       document.querySelector(".lyrics-part .rail-body"),
       document.querySelector(`.rail [data-l="${active}"]`),
