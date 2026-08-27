@@ -10,11 +10,13 @@ import { LyricLines, isReading, scrollToLine, useReading, type Line } from "./Ly
 export function Words({
   t,
   lines,
+  translated,
   progressMs,
   onSeek,
 }: {
   t: Strings;
   lines: Line[] | null;
+  translated?: string[] | null;
   progressMs: number;
   onSeek: (ms: number) => void;
 }) {
@@ -36,7 +38,7 @@ export function Words({
       {lines === null && <p className="loading">{t.loading}</p>}
       {lines?.length === 0 && <p className="help">{t.lyricsNone}</p>}
       {lines && lines.length > 0 && (
-        <LyricLines lines={lines} active={active} onSeek={onSeek} />
+        <LyricLines lines={lines} active={active} onSeek={onSeek} translated={translated} />
       )}
     </aside>
   );

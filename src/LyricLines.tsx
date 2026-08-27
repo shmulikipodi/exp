@@ -87,10 +87,13 @@ export function LyricLines({
   lines,
   active,
   onSeek,
+  translated,
 }: {
   lines: Line[];
   active: number;
   onSeek?: (ms: number) => void;
+  /** The same lines in another language, one for one, when the reader asked for them. */
+  translated?: string[] | null;
 }) {
   return (
     <>
@@ -113,6 +116,7 @@ export function LyricLines({
             onClick={onSeek ? () => onSeek(Math.max(0, Math.round(line.at * 1000))) : undefined}
           >
             {line.text || "·"}
+            {translated?.[i] ? <span className="rendered">{translated[i]}</span> : null}
           </p>
         );
       })}

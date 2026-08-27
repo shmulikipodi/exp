@@ -562,6 +562,9 @@ export default async function handler(req: any, res: any) {
   try {
     const body = await readJson(req);
     const userKeys = (body.keys ?? []).map((k) => String(k).trim()).filter(Boolean);
+    // The reader's own language edition is a source, not a formatting choice: for a
+    // record only its own country wrote about, it is the only encyclopedia that has it.
+    const readerLang = body.lang === "he" ? "he" : "en";
 
     if (body.check) {
       return res.end(JSON.stringify(await describePool(userKeys)));
@@ -602,7 +605,7 @@ export default async function handler(req: any, res: any) {
     if (body.mode === "artist" || body.mode === "album") {
       const isArtist = body.mode === "artist";
       const who = (body.artist ?? artists[0]).trim();
-      const subject = await (isArtist ? gatherArtist(who) : gatherAlbum(body.album ?? "", who));
+      const subject = await (isArtist ? gatherArtist(who, readerLang) : gatherAlbum(body.album ?? "", who, readerLang));
 
       const base = isArtist ? ARTIST_SYSTEM : ALBUM_SYSTEM;
       const sys = body.lang === "he" ? `${HEBREW_HEADER}${base}` : base;
@@ -703,9 +706,9 @@ export default async function handler(req: any, res: any) {
       // catalogue row. The artist and the album are cheap to add — both are cached per
       // track — and they are where most questions actually live.
       const [artistEv, albumEv] = await Promise.all([
-        gatherArtist(artists[0]).catch(() => ({ text: "", sources: [] as [string, string][] })),
+        gatherArtist(artists[0], readerLang).catch(() => ({ text: "", sources: [] as [string, string][] })),
         body.album
-          ? gatherAlbum(body.album, artists[0]).catch(() => ({
+          ? gatherAlbum(body.album, artists[0], readerLang).catch(() => ({
               text: "",
               sources: [] as [string, string][],
             }))
@@ -758,9 +761,9 @@ export default async function handler(req: any, res: any) {
     let wideBlock = "";
     if (depth === "deep") {
       const [artistEv, albumEv] = await Promise.all([
-        gatherArtist(artists[0]).catch(() => ({ text: "", sources: [] as [string, string][] })),
+        gatherArtist(artists[0], readerLang).catch(() => ({ text: "", sources: [] as [string, string][] })),
         body.album
-          ? gatherAlbum(body.album, artists[0]).catch(() => ({
+          ? gatherAlbum(body.album, artists[0], readerLang).catch(() => ({
               text: "",
               sources: [] as [string, string][],
             }))

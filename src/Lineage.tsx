@@ -166,6 +166,28 @@ export function Lineage({
         </p>
       )}
 
+      {/* Who they were and what the record was, asked for rather than dumped on you.
+          These used to be Spotify profile pages — followers, top tracks, a photograph.
+          This is the other thing: what you would want explained about the people and
+          the album, in prose, only if you ask. */}
+      <p className="tree-head">{t.treeAbout}</p>
+      <div className="about">
+        {artistText ? (
+          <p>{artistText}</p>
+        ) : (
+          <button className="link" disabled={busy !== ""} onClick={() => onAsk("artist")}>
+            {busy === "artist" ? t.thinking : t.whoAreThey(artist)}
+          </button>
+        )}
+        {albumText ? (
+          <p>{albumText}</p>
+        ) : (
+          <button className="link" disabled={busy !== ""} onClick={() => onAsk("album")}>
+            {busy === "album" ? t.thinking : t.whatIsRecord(album)}
+          </button>
+        )}
+      </div>
+
       {songs(t.treeOriginal, tree?.original ?? [])}
 
       {built.length > 1 && (
@@ -217,28 +239,6 @@ export function Lineage({
       {songs(t.treeSampledBy, tree?.usedBy ?? [])}
       {songs(t.treeCoversOf, tree?.coveredBy ?? [])}
       {songs(t.treeVersions, tree?.versions ?? [])}
-
-      {/* Who they were and what the record was, asked for rather than dumped on you.
-          These used to be Spotify profile pages — followers, top tracks, a photograph.
-          This is the other thing: what you would want explained about the people and
-          the album, in prose, only if you ask. */}
-      <p className="tree-head">{t.treeAbout}</p>
-      <div className="about">
-        {artistText ? (
-          <p>{artistText}</p>
-        ) : (
-          <button className="link" disabled={busy !== ""} onClick={() => onAsk("artist")}>
-            {busy === "artist" ? t.thinking : t.whoAreThey(artist)}
-          </button>
-        )}
-        {albumText ? (
-          <p>{albumText}</p>
-        ) : (
-          <button className="link" disabled={busy !== ""} onClick={() => onAsk("album")}>
-            {busy === "album" ? t.thinking : t.whatIsRecord(album)}
-          </button>
-        )}
-      </div>
 
       {covers.length > 0 && (
         <>

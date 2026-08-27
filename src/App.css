@@ -887,10 +887,24 @@ button.ghost:hover { color: var(--dim); background: none; }
 /* Already sung: white and sharp, all the way back to the first line. */
 .lyric-line.sung { color: #f3ede3; opacity: 0.9; filter: none; }
 
+/* A mark on the line being sung. Sung lines are already white, so brightness alone
+   cannot say "here" — scroll away and every line above looks the same as this one. */
+.lyric-line.now::before,
+.woven.now::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.15em 0.15em;
+  inset-inline-start: -14px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
 [dir="rtl"] .lyric-line { transform-origin: right center; }
 .lyric-line.seekable { cursor: pointer; }
 
 .lyric-line.now {
+  position: relative;
   color: #fff;
   opacity: 1;
   filter: none;
@@ -1201,6 +1215,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 }
 .words::-webkit-scrollbar { display: none; }
 .words::before { content: ""; display: block; height: 12vh; }
+.words .lyric-line, .stream .woven { padding-inline-start: 14px; }
 .words .lyric-line { font-size: clamp(17px, 1.35vw, 23px); }
 .words.reading .lyric-line { filter: none; opacity: 0.78; }
 .words.reading .lyric-line.now { opacity: 1; }
@@ -1210,6 +1225,32 @@ body.dragging { cursor: col-resize; user-select: none; }
    is. A lyric line reads like a lyric line and a note reads like a note, so the column
    stays two voices rather than one grey wall. */
 /* Where the record changes gear. Small enough to read past, there when you look. */
+/* The translation sits under its line, quieter than it: you are reading the song, and
+   this is what it means. */
+.rendered {
+  display: block;
+  margin-top: 3px;
+  font: 400 0.62em/1.45 var(--serif);
+  letter-spacing: 0;
+  color: rgba(243,237,227,0.5);
+  text-wrap: pretty;
+}
+.lyric-line.now .rendered, .woven.now .rendered { color: rgba(243,237,227,0.72); }
+
+.render {
+  margin: 0 0 18px;
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  font: 600 10px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.render:hover { color: var(--ink); border-color: rgba(243,237,227,0.28); }
+.render.on { color: var(--accent); border-color: var(--accent-dim); }
+
 .part {
   margin: 26px 0 8px;
   font: 600 9px var(--mono);
@@ -1236,7 +1277,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 }
 .woven.seekable { cursor: pointer; }
 .woven.sung { color: #f3ede3; opacity: 0.92; }
-.woven.now { color: #fff; opacity: 1; }
+.woven.now { position: relative; color: #fff; opacity: 1; }
 /* Scrolling means reading, and blurred text cannot be read. */
 .stream.reading .woven { opacity: 0.94; }
 .stream.reading .woven.now { opacity: 1; }

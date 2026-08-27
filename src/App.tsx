@@ -33,7 +33,7 @@ import { Lyrics } from "./Lyrics";
 import { Wash } from "./Wash";
 import { MARKS, MARK_ORDER, type Mark } from "./RailIcons";
 import { Lineage } from "./Lineage";
-import { useLyrics } from "./useLyrics";
+import { useLyrics, useTranslation } from "./useLyrics";
 import { Words } from "./Words";
 import { isReading, scrollToLine, useReading } from "./LyricLines";
 import { Settings } from "./Settings";
@@ -749,6 +749,11 @@ export default function App() {
   );
   // The words either run through the notes or stand in a column beside them. Both are
   // the same lines; only where they are drawn changes.
+  // Turned on per language rather than per song: someone who wants Spanish rendered
+  // wants every Spanish song rendered.
+  const [translate, setTranslate] = useState(() => localStorage.getItem("ln.translate") === "1");
+  const rendered = useTranslation(lyrics, lang, translate);
+
   const showWords = marks.includes("words") && !viewing;
   const beside = showWords && marks.includes("split");
   const words = showWords && !beside ? (lyrics ?? []) : [];
@@ -1470,6 +1475,20 @@ export default function App() {
 
             {activeNotes && (
               <>
+                {showWords && (lyrics?.length ?? 0) > 0 && (
+                  <button
+                    className={`render${translate ? " on" : ""}`}
+                    title={t.translateHint}
+                    onClick={() => {
+                      const next = !translate;
+                      setTranslate(next);
+                      localStorage.setItem("ln.translate", next ? "1" : "0");
+                    }}
+                  >
+                    {rendered.failed ? t.translateFailed : translate ? t.translateOff : t.translateOn}
+                  </button>
+                )}
+
                 {kindsHere.length > 1 && (
                   <div className="kinds" role="group">
                     <button
@@ -1545,6 +1564,9 @@ export default function App() {
                         }
                       >
                         {item.line.text || "·"}
+                        {rendered.lines?.[item.index] ? (
+                          <span className="rendered">{rendered.lines[item.index]}</span>
+                        ) : null}
                       </p>
                     );
                   }
@@ -1833,6 +1855,7 @@ export default function App() {
               <Words
                 t={t}
                 lines={lyrics}
+                translated={rendered.lines}
                 progressMs={progress}
                 onSeek={(ms) => run(() => seek(ms), () => setProgress(ms))}
               />

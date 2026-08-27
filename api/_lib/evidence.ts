@@ -614,9 +614,18 @@ most one of these, and only if it is genuinely remarkable.\n${highlights(found.t
 }
 
 /** Who the act is: formation, place, line-up. Not the song that happens to be playing. */
-export async function gatherArtist(artist: string): Promise<Evidence> {
+/**
+ * Both encyclopedias, not just the English one.
+ *
+ * Spotify hands over an artist's name in Latin script — "Tamir Bar" — while the only
+ * article written about them is filed on he.wikipedia under תמיר בר. Asking English
+ * Wikipedia for a name it has never heard of and then reporting that nothing is known
+ * is the whole reason non-English records came back empty. The Hebrew edition answers
+ * the Latin name perfectly well; it was simply never asked.
+ */
+export async function gatherArtist(artist: string, uiLang = "en"): Promise<Evidence> {
   const blank = { text: "", sources: [] as [string, string][] };
-  const [mb, wp] = await Promise.all([
+  const [mb, wp, own] = await Promise.all([
     (async () => {
       const found = await json(
         `${MB}/artist/?query=artist:"${clean(artist)}"&fmt=json&limit=3`,
@@ -655,18 +664,23 @@ export async function gatherArtist(artist: string): Promise<Evidence> {
       };
     })().catch(() => blank),
     withBudget(wikipediaOn(`${artist} band musician`, artist).catch(() => blank), blank),
+    uiLang !== "en"
+      ? withBudget(wikipediaOn(`${artist}`, artist, uiLang).catch(() => blank), blank)
+      : Promise.resolve(blank),
   ]);
 
   return {
-    text: [mb.text, wp.text].filter(Boolean).join("\n\n---\n\n"),
-    sources: [...mb.sources, ...wp.sources],
+    // The reader's own edition first when it has anything: it is likelier to be the one
+    // that actually covers the record, and likelier to name people the way they read them.
+    text: [own.text, mb.text, wp.text].filter(Boolean).join("\n\n---\n\n"),
+    sources: [...own.sources, ...mb.sources, ...wp.sources],
   };
 }
 
 /** The record as a whole: when it was made, who made it, what it did. */
-export async function gatherAlbum(album: string, artist: string): Promise<Evidence> {
+export async function gatherAlbum(album: string, artist: string, uiLang = "en"): Promise<Evidence> {
   const blank = { text: "", sources: [] as [string, string][] };
-  const [mb, wp] = await Promise.all([
+  const [mb, wp, own] = await Promise.all([
     (async () => {
       const found = await json(
         `${MB}/release-group/?query=releasegroup:"${clean(album)}" AND artist:"${clean(artist)}"&fmt=json&limit=3`,
@@ -696,10 +710,15 @@ export async function gatherAlbum(album: string, artist: string): Promise<Eviden
       };
     })().catch(() => blank),
     withBudget(wikipediaOn(`${album} ${artist} album`, album).catch(() => blank), blank),
+    uiLang !== "en"
+      ? withBudget(wikipediaOn(`${album} ${artist}`, album, uiLang).catch(() => blank), blank)
+      : Promise.resolve(blank),
   ]);
 
   return {
-    text: [mb.text, wp.text].filter(Boolean).join("\n\n---\n\n"),
-    sources: [...mb.sources, ...wp.sources],
+    // The reader's own edition first when it has anything: it is likelier to be the one
+    // that actually covers the record, and likelier to name people the way they read them.
+    text: [own.text, mb.text, wp.text].filter(Boolean).join("\n\n---\n\n"),
+    sources: [...own.sources, ...mb.sources, ...wp.sources],
   };
 }
