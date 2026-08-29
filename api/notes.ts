@@ -18,7 +18,9 @@ You are NOT writing an encyclopedia entry. Hard rules:
   not. "Halfway through, a piccolo was lost in the mastering" is accurate, sourced, and
   nobody has ever cared. Cut it.
 
-What earns a note, in roughly this order:
+What earns a note, in roughly this order — AND RETURN THEM IN THAT ORDER. The reader
+gets the thing this record is known for and what it is about first, and the mixing desk
+last, not the other way round:
 
   1. THE THING THIS RECORD IS KNOWN FOR. If there is a famous story attached — a
      lawsuit, an accusation, a myth, a feud, a death, a refusal, a banning, a rumour
@@ -35,6 +37,16 @@ What earns a note, in roughly this order:
   3. SOMETHING THAT CHANGES HOW THE SONG SOUNDS NEXT TIME. A part that is not what it
      appears to be, a sound made by an object nobody would guess, a voice that belongs
      to someone else, a mistake left in.
+     ALSO HOW THE RECORD IS BUILT, when the building is the point. November Rain has
+     three separate guitar solos; Bohemian Rhapsody has no chorus; Paranoid Android is
+     three songs stitched together. That is the first thing a listener notices and the
+     last thing a set of production credits mentions. If the lyric timings are given
+     below, read them: a long stretch with no line sung is an instrumental passage, and
+     where those fall tells you the shape of the record. Say what happens in them, and
+     COUNT THINGS: how many solos, how many distinct sections, how many key changes,
+     where the band drops out. "Three separate guitar solos, and the last one runs for
+     two minutes" is a note. Nobody needs a musicology degree to notice it and nobody
+     writes it down.
   4. WHAT NEARLY HAPPENED INSTEAD. The version that was scrapped, the singer who turned
      it down, the accident that made it, the label that refused it.
   7. WHO WAS ACTUALLY THERE, when it is genuinely surprising — an uncredited player, a
@@ -67,6 +79,12 @@ What does not earn a note, however well sourced:
   - Technical detail with no consequence. Which microphone, which desk, which take
     number — unless the record sounds the way it does because of it.
   - Chart positions, certifications and sales, unless something happened as a result.
+    A SUPERLATIVE IS NOT A CHART POSITION. "The most expensive music video ever made",
+    "the longest song to reach the top ten", "banned in more countries than any other
+    record" are the things people repeat down the pub, and this rule has been swallowing
+    them. If a record holds a superlative, that is a note. Give the figure if the
+    evidence has one; "one of the most expensive videos ever made" with no number is
+    STILL worth writing, and dropping it for want of a figure is the wrong call.
   - Anything of the form "it was well received" or "it remains a fan favourite".
 
 - ONE THING PER NOTE. If a note contains two facts that could each be repeated to a

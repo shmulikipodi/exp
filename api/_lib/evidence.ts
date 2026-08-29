@@ -27,7 +27,7 @@ const SIGNALS =
  * sections finds all of it on purpose.
  */
 const LIFE =
-  /(legacy|popular culture|cultural|cover|parod|sampl|interpolat|controvers|scandal|lawsuit|litigation|court|banned|censor|in media|in film|film and television|television|advertis|impact|influence|aftermath|tribute|protest|reaction|meaning|interpretation)/i;
+  /(legacy|popular culture|cultural|cover|parod|sampl|interpolat|controvers|scandal|lawsuit|litigation|court|banned|censor|video|promo|clip|filming|in media|in film|film and television|television|advertis|impact|influence|aftermath|tribute|protest|reaction|meaning|interpretation)/i;
 
 /** How it was made. Worth keeping, but never at the expense of the above. */
 const MAKING = /(writing|composition|background|origin|lyric|analysis|theme|version|rendition|recording)/i;
