@@ -8,6 +8,17 @@ import { findEpisode, findMentions } from "./_lib/podcast.js";
 
 const MODEL = "gemini-3.6-flash";
 
+/**
+ * Bumped whenever the prompt changes in a way that would produce better notes.
+ *
+ * Notes are kept per track, forever, and were never stamped — so every record you had
+ * already played stayed frozen at whatever the prompt said the day you first played it.
+ * Every improvement since was invisible on exactly the songs you cared enough to play.
+ * Stored notes are not thrown away (they cost a request to make); they are marked as
+ * written by an older hand, and can be written again on request.
+ */
+const NOTES_VERSION = 5;
+
 const SYSTEM = `You write liner notes — the kind that came folded inside a record sleeve,
 written by someone who was there, for someone who is listening right now.
 
@@ -106,6 +117,12 @@ What does not earn a note, however well sourced:
 - Every note must contain something the listener could not have guessed from the title
   and artist alone. A note that says the song is beloved, influential, iconic, a classic,
   a fan favourite, or a standout track is worthless. Delete it.
+- QUOTE PEOPLE. If the evidence has the writer, the producer or a player saying it, use
+  their words in quotation marks instead of reporting them. "Henley called it 'a journey
+  from innocence to experience'" beats "Henley described it as being about the loss of
+  innocence" — the second is you, the first is him. A set of notes on a well-documented
+  record with nobody's voice in it has paraphrased away the best material it was given.
+  Never invent or tidy a quote: quote exactly or report plainly.
 - Be specific and checkable. Names, years, rooms, instruments, takes, money, arguments.
   "Recorded quickly" is nothing. "Cut in two takes at Muscle Shoals on a Sunday because
   the studio was booked Monday" is a liner note. But specificity is the standard a good
@@ -220,7 +237,7 @@ evidence gave you, and do not write a source on something it did not.
 
 Return ONLY a JSON object, no markdown fence:
 {
-  "headline": "one sentence naming what this record actually is, the way someone who knows it would say it to a friend. Not a summary, and NOT PRAISE — if it contains any of: masterpiece, masterwork, breathtaking, sublime, iconic, legendary, anthem, monolithic, epic, timeless, unforgettable, seminal, definitive, agonizing, soaring — delete it and write what the record IS instead. 'Nine minutes of piano ballad that Axl Rose had been writing since before the band existed' is a headline. 'A breathtaking symphonic masterwork' is a blurb.",
+  "headline": "one sentence naming what this record IS — its shape, its scale, the fact it is built on, the thing that happened to it. NOT what it is about: that is the "meaning" field below, and a headline that duplicates it wastes the one line you get. 'Six minutes with no chorus, assembled from three unfinished songs' is a headline; 'a rock parable about the decay of the American dream' is the meaning field wearing a hat. Not a summary, and NOT PRAISE — if it contains any of: masterpiece, masterwork, breathtaking, sublime, iconic, legendary, anthem, monolithic, epic, timeless, unforgettable, seminal, definitive, agonizing, soaring — delete it and write what the record IS instead. 'Nine minutes of piano ballad that Axl Rose had been writing since before the band existed' is a headline. 'A breathtaking symphonic masterwork' is a blurb.",
   "notes": [{ "kind": "origin", "at": null, "atBasis": null, "from": "genius", "title": "four to seven words", "body": "one to three sentences" }],
   "meaning": "one or two sentences on what the song is ABOUT — who it was written to or for, what the writer has said it means, what it is widely taken to mean and whether that is right. Quote the writer if the evidence carries them saying it. This is the second thing on the list above and it kept going missing when it was only a rule, so it is a field. Empty string ONLY if the evidence genuinely says nothing and you genuinely do not know.",
   "questions": ["three short questions THIS record invites and you have not already answered above — the thing a listener would actually wonder having heard it. Specific to this song, never generic. Six to ten words each."],
@@ -961,6 +978,7 @@ export default async function handler(req: any, res: any) {
           typeof parsed.meaning === "string" && parsed.meaning.trim().length > 20
             ? parsed.meaning.replace(LINK, "$2").trim()
             : "",
+        version: NOTES_VERSION,
         confidence: parsed.confidence === "low" ? "low" : "high",
         sources: [...evidence.sources, ...grounded.urls].slice(0, 8),
         live: grounded.live,

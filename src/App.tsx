@@ -74,6 +74,8 @@ type Notes = {
   thread: string | null;
   /** What the song is about. Its own field, because as a rule it kept going missing. */
   meaning?: string;
+  /** Which generation of the prompt wrote these. Older ones can be written again. */
+  version?: number;
   questions?: string[];
   confidence: "high" | "low";
   sources: [string, string][];
@@ -83,6 +85,10 @@ type Notes = {
   answers?: Answer[];
   rejected?: string[];
 };
+
+/** Must match NOTES_VERSION in api/notes.ts. Stored notes older than this were written
+ *  before the last real improvement to how notes are written. */
+const NOTES_VERSION = 5;
 
 const TICK_MS = 250;
 
@@ -865,6 +871,18 @@ export default function App() {
   }, [viewing, playing, lang]);
 
   const current = viewing ? viewing.notes : notes;
+
+  const rewrite = useCallback(async () => {
+    const target = targetOf();
+    if (!target || busy !== "") return;
+    cache.current.delete(`${target.id}:${target.lang}`);
+    await forget(target.id, target.lang);
+    fetchedFor.current = "";
+    setViewing(null);
+    setNotes(null);
+    setError("");
+    setReload((r) => r + 1);
+  }, [targetOf, busy]);
 
   const askMore = useCallback(async () => {
     const target = targetOf();
@@ -1758,6 +1776,14 @@ export default function App() {
                   ))}
 
                 <div className="conversation">
+                  {(activeNotes.version ?? 0) < NOTES_VERSION && !viewing && (
+                    <p className="stale">
+                      {t.staleNotes}
+                      <button className="link" disabled={busy !== ""} onClick={rewrite}>
+                        {t.rewriteNotes}
+                      </button>
+                    </p>
+                  )}
                   <div className="row">
                     <button onClick={askMore} disabled={busy === "more"}>
                       {busy === "more"

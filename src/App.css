@@ -1203,6 +1203,15 @@ body.dragging { cursor: col-resize; user-select: none; }
    on whatever was behind it — on a short set of notes that put a floating panel in the
    middle of the screen with the reading underneath it. It sits at the end of the
    column instead, where the reading ends and the asking begins. */
+/* Notes written by an older hand. Not thrown away — each set cost a request — but the
+   reader is told, and can spend another one. */
+.stale {
+  margin: 0 0 14px;
+  font: 12px var(--mono);
+  color: var(--faint);
+}
+.stale button { margin-inline-start: 8px; font: 12px var(--mono); color: var(--accent); }
+
 .conversation {
   max-width: 30em;
   margin-top: 7vh;
