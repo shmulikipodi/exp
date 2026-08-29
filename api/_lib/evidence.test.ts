@@ -86,3 +86,73 @@ describe("highlights", () => {
     expect(highlights("Short and complete.", 500)).toBe("Short and complete.");
   });
 });
+
+describe("highlights, ranked by what a section holds", () => {
+  const filler = (word: string, n: number) => Array(n).fill(`${word} sentence here.`).join(" ");
+
+  it("keeps a story filed under a heading nobody would have listed", () => {
+    // Stairway to Heaven files its most repeated myth under "Claims of backmasking",
+    // which no hand-written list of section names was ever going to contain.
+    const article = [
+      "The song was released in 1971.",
+      "",
+      "== Composition ==",
+      filler("desk", 300),
+      "",
+      "== Claims of backmasking ==",
+      "Played backward the line was purported to contain references to Satan, and a trial followed after broadcasters accused the band of subliminal messages.",
+      "",
+      "== Personnel ==",
+      filler("engineer", 300),
+    ].join("\n");
+
+    const kept = highlights(article, 1200);
+    expect(kept).toContain("backward");
+  });
+
+  it("does not let another artist's version outrank the record itself", () => {
+    // Five cover sections were pushing the song's own recording out of the budget.
+    const article = [
+      "A protest song from 1971.",
+      "",
+      "== Cover versions ==",
+      "Many artists covered it and released their versions on tribute albums over the years.",
+      "",
+      "== Recording ==",
+      "The label head refused to release it, telling him it was the worst thing he had ever heard, and the singer went on strike until they relented.",
+    ].join("\n");
+
+    const kept = highlights(article, 380);
+    expect(kept).toContain("worst thing");
+  });
+
+  it("reaches a story buried at the end of a long section", () => {
+    const article = [
+      "Opening.",
+      "",
+      "== Recording ==",
+      filler("microphone", 200),
+      "",
+      "The label head called it the worst thing he had ever heard and refused to release it.",
+    ].join("\n");
+
+    const kept = highlights(article, 700);
+    expect(kept).toContain("worst thing");
+  });
+
+  it("never spends a character on a chart table", () => {
+    const article = [
+      "Opening.",
+      "",
+      "== Charts ==",
+      filler("peak position", 200),
+      "",
+      "== Controversy ==",
+      "It was banned by the BBC after a complaint and the band sued.",
+    ].join("\n");
+
+    const kept = highlights(article, 500);
+    expect(kept).toContain("banned");
+    expect(kept).not.toContain("peak position");
+  });
+});

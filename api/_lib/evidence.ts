@@ -29,10 +29,22 @@ const SIGNALS =
 const LIFE =
   /(legacy|popular culture|cultural|cover|parod|sampl|interpolat|controvers|scandal|lawsuit|litigation|court|banned|censor|video|promo|clip|filming|in media|in film|film and television|television|advertis|impact|influence|aftermath|tribute|protest|reaction|meaning|interpretation)/i;
 
+/**
+ * Sections about somebody else's record. What's Going On carries five of them — the
+ * Cyndi Lauper version, Live Aid Armenia, Artists Against AIDS — and they were
+ * outranking the section where Berry Gordy calls the song the worst thing he ever
+ * heard, because "cover" reads as a story signal. Who else recorded it is a real
+ * question, and the family-tree column already answers it from the catalogue.
+ */
+const OTHERS = /(cover|version|rendition|remix|tribute)/i;
+
+/** Sections that are a table with a heading on it. Never worth a character. */
+const DULL =
+  /^(charts?|certifications?|track listings?|personnel|credits|release history|see also|references?|notes|further reading|external links|bibliography|accolades|weekly charts|year-end charts|sales)/i;
+
 /** How it was made. Worth keeping, but never at the expense of the above. */
 const MAKING = /(writing|composition|background|origin|lyric|analysis|theme|version|rendition|recording)/i;
 
-const PRIZED = new RegExp(`${LIFE.source}|${MAKING.source}`, "i")
 
 type Section = { heading: string; body: string };
 
@@ -82,39 +94,76 @@ export function highlights(text: string, budget: number): string {
     .slice(0, 3)
     .forEach((p) => take(p));
 
-  // Then the sections named above — but the song's life before the song's making. In
-  // document order, "Writing and recording" and "Lyrics and interpretation" spent the
-  // entire budget on a long article and "Legacy" and "Covers and parodies" never
-  // arrived, which is the exact failure this whole function exists to prevent.
-  for (const part of parts) {
-    if (!LIFE.test(part.heading.trim())) continue;
-    take(part.body.slice(0, 2200), part.heading);
-  }
-  for (const part of parts) {
-    if (LIFE.test(part.heading.trim()) || !MAKING.test(part.heading.trim())) continue;
-    take(part.body.slice(0, 1600), part.heading);
-  }
+  /**
+   * Rank every section by how much story it actually carries, rather than by whether
+   * its heading appears on a list I wrote by hand.
+   *
+   * The list kept losing the best thing in the article. Stairway to Heaven files its
+   * most repeated myth under "Claims of backmasking" and What's Going On buries Berry
+   * Gordy calling it "the worst thing I ever heard in my life" inside "Recording" —
+   * neither heading was named, both articles are twice the budget, and both stories
+   * were cut while chart tables and legacy prose survived. Density of signal words is
+   * a far better guide to what a section holds than its title, and it works on
+   * articles nobody has read in advance. The heading list stays, as a thumb on the
+   * scale rather than the whole scale.
+   */
+  const score = (part: Section) => {
+    const hits = (part.body.match(new RegExp(SIGNALS.source, "gi")) ?? []).length;
+    const density = (hits * 1000) / Math.max(400, part.body.length);
+    const heading = part.heading.trim();
+    const mine = !OTHERS.test(heading);
+    return density + (LIFE.test(heading) && mine ? 6 : 0) + (MAKING.test(heading) ? 2 : 0) - (mine ? 0 : 4);
+  };
 
-  // Then whatever else carries a story — richest first, not first-come. Taking them in
-  // document order let one long lawsuit section spend the whole budget before the
-  // article ever got to the myth people actually remember.
-  const rest = parts
-    .filter((p) => !PRIZED.test(p.heading.trim()))
-    .flatMap((p) => p.body.split(/\n+/))
-    .filter((p) => p.trim().length > 40 && !taken.has(p));
-
-  const scored = rest
-    .map((p) => ({ p, score: (p.match(new RegExp(SIGNALS.source, "gi")) ?? []).length }))
-    .filter((x) => x.score > 0)
+  const ranked = parts
+    // A short section can be the best thing in the article — one line about the
+    // Olympics and Weird Al beats four hundred words on the desk.
+    .filter((p) => p.heading && p.body.length > 60 && !DULL.test(p.heading.trim()))
+    .map((p) => ({ part: p, score: score(p) }))
     .sort((a, b) => b.score - a.score);
 
-  for (const { p } of scored) take(p);
+  /**
+   * Richest first, each capped so one long section cannot spend the whole budget — and
+   * capped by choosing its best paragraphs rather than its first ones.
+   *
+   * Taking the opening 2,200 characters of a section is the same mistake as taking the
+   * opening 9,000 of an article, one level down: What's Going On keeps Berry Gordy
+   * calling it "the worst thing I ever heard in my life" most of the way through
+   * "Recording", behind the drum booth and the session dates.
+   */
+  const best = (body: string, cap: number) => {
+    if (body.length <= cap) return body;
+    const paras = body.split(/\n+/).filter((p) => p.trim().length > 40);
+    const withScore = paras.map((p, i) => ({
+      p,
+      i,
+      hits: (p.match(new RegExp(SIGNALS.source, "gi")) ?? []).length,
+    }));
+    const picked: typeof withScore = [];
+    let room = cap;
+    for (const item of [...withScore].sort((a, b) => b.hits - a.hits || a.i - b.i)) {
+      if (item.p.length > room) continue;
+      picked.push(item);
+      room -= item.p.length;
+    }
+    // Back into reading order: a section shuffled by score is hard to follow.
+    return picked.sort((a, b) => a.i - b.i).map((x) => x.p).join("\n\n");
+  };
 
-  // Still room? Fill in with the rest rather than leaving the budget unspent.
-  for (const p of rest) take(p);
+  for (const { part } of ranked) take(best(part.body, 2400), part.heading);
+
+  // Still room? Fill in with whatever is left rather than leaving the budget unspent —
+  // except the tables, which are never worth a character however much room there is.
+  for (const part of parts) {
+    if (part.heading && DULL.test(part.heading.trim())) continue;
+    for (const p of part.body.split(/\n+/)) {
+      if (p.trim().length > 40) take(p);
+    }
+  }
 
   return kept.join("\n\n").slice(0, budget);
 }
+
 const MB = "https://musicbrainz.org/ws/2";
 const wpApi = (lang: string) => `https://${lang}.wikipedia.org/w/api.php`;
 
