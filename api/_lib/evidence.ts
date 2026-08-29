@@ -399,6 +399,29 @@ async function describeRecording(
   return { text: body, sources: [[url, `MusicBrainz — ${rec.title}`]] };
 }
 
+/** Song, album, single, band — in the editions this app asks for. */
+const MUSICAL =
+  /\b(song|single|album|recorded|recording|band|track|lyrics|musician|composer|EP)\b|שיר|אלבום|סינגל|להקה|הוקלט|מוזיק/i;
+
+/**
+ * Does this article appear to be about the record, rather than about a word that
+ * happens to be its title?
+ *
+ * Two ways to pass: it names the artist, or the opening reads like music writing. The
+ * opening is what is checked rather than the whole article, because a long piece on
+ * anything will mention a song eventually.
+ */
+export function aboutThisRecord(text: string, artist: string, album = ""): boolean {
+  const head = text.slice(0, 1200).toLowerCase();
+  const named = (who: string) => {
+    const parts = who.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2);
+    return parts.length > 0 && parts.every((w) => head.includes(w));
+  };
+  if (artist && named(artist)) return true;
+  if (album && named(album)) return true;
+  return MUSICAL.test(text.slice(0, 700));
+}
+
 async function wikipedia(
   title: string,
   artist: string,
@@ -440,6 +463,13 @@ async function wikipedia(
   const pages = extract?.query?.pages ?? {};
   const text = (Object.values(pages)[0] as any)?.extract ?? "";
   if (!text) return { text: "", sources: [] };
+
+  // A title match is not a subject match. "יורה" is a Shlomo Artzi song and also the
+  // Hebrew word for the first rain of autumn — the encyclopedia's article is about the
+  // weather, its title matched exactly, and the app went on to explain the song using
+  // meteorology. One-word titles are usually common words: Creep, Hurt, Africa,
+  // Yesterday. So an article has to look like it is about this record before it counts.
+  if (!aboutThisRecord(text, artist, album)) return { text: "", sources: [] };
 
   const tag = lang === "en" ? "Wikipedia" : `Wikipedia (${lang})`;
   const url = `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, "_"))}`;

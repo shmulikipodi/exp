@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { highlights, sameSong } from "./evidence.js";
+import { aboutThisRecord, highlights, sameSong } from "./evidence.js";
 
 describe("sameSong", () => {
   it("matches a plain title", () => {
@@ -154,5 +154,30 @@ describe("highlights, ranked by what a section holds", () => {
     const kept = highlights(article, 500);
     expect(kept).toContain("banned");
     expect(kept).not.toContain("peak position");
+  });
+});
+
+describe("aboutThisRecord", () => {
+  it("takes an article that names the artist", () => {
+    expect(aboutThisRecord("Creep is a song by the English rock band Radiohead.", "Radiohead")).toBe(true);
+  });
+
+  it("takes an article that reads like music writing even without the name", () => {
+    expect(aboutThisRecord("The single was recorded in 1971 and released as a 7-inch.", "Nobody")).toBe(true);
+    expect(aboutThisRecord("זהו שיר שהוקלט בשנת 1980 ויצא כסינגל.", "מישהו")).toBe(true);
+  });
+
+  it("refuses the weather", () => {
+    // "יורה" is a Shlomo Artzi song and the Hebrew word for the first rain of autumn.
+    // The encyclopedia article is about rainfall, and its title matches exactly.
+    const weather =
+      "היורה הוא הגשם הראשון היורד בארץ ישראל בסתיו, לאחר עונת הקיץ היבשה. " +
+      "הוא מציין את תחילת עונת הגשמים ומופיע במקורות כברכה חקלאית.";
+    expect(aboutThisRecord(weather, "שלמה ארצי")).toBe(false);
+  });
+
+  it("refuses an article about the animal, not the record", () => {
+    const bird = "The blackbird is a species of true thrush found across Europe and Asia.";
+    expect(aboutThisRecord(bird, "The Beatles")).toBe(false);
   });
 });
