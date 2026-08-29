@@ -1109,6 +1109,17 @@ body.dragging { cursor: col-resize; user-select: none; }
   text-wrap: pretty;
 }
 
+/* What the song is about, before anything about how it was made. */
+.meaning {
+  max-width: 30em;
+  margin: 0 0 28px;
+  padding-inline-start: 14px;
+  border-inline-start: 2px solid var(--accent);
+  font: 16px/1.62 var(--serif);
+  color: var(--ink);
+  text-wrap: pretty;
+}
+
 .thread {
   font-size: clamp(14px, 1.05vw, 17px);
   line-height: 1.6;
@@ -1343,6 +1354,8 @@ body.dragging { cursor: col-resize; user-select: none; }
 .kind.lore { color: #c98b8b; }
 .kind.scene { color: #a8b06a; }
 .kind.trivia { color: #d98fb0; }
+.kind.video { color: #8ab4c9; }
+.kinds button.video { color: #8ab4c9; }
 
 .note h3 {
   font-family: var(--note-title);

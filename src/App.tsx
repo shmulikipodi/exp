@@ -72,6 +72,8 @@ type Notes = {
   headline: string;
   notes: Note[];
   thread: string | null;
+  /** What the song is about. Its own field, because as a rule it kept going missing. */
+  meaning?: string;
   questions?: string[];
   confidence: "high" | "low";
   sources: [string, string][];
@@ -1513,6 +1515,17 @@ export default function App() {
                   <p className="headline">
                     <Linked
                       text={activeNotes.headline}
+                      links={activeNotes.links}
+                      onPlay={playNamed}
+                      onOpenArtist={openArtist}
+                      t={t}
+                    />
+                  </p>
+                )}
+                {activeNotes.meaning && (
+                  <p className="meaning">
+                    <Linked
+                      text={activeNotes.meaning}
                       links={activeNotes.links}
                       onPlay={playNamed}
                       onOpenArtist={openArtist}

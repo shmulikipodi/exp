@@ -179,6 +179,7 @@ export const STRINGS = {
       version: "this version",
       scene: "the scene",
       trivia: "did you know",
+      video: "the video",
     } as Record<string, string>,
   },
   he: {
@@ -356,6 +357,7 @@ export const STRINGS = {
       version: "הגרסה הזו",
       scene: "הסצנה",
       trivia: "הידעת",
+      video: "הקליפ",
     } as Record<string, string>,
   },
 };

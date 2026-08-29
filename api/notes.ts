@@ -39,6 +39,14 @@ What earns a note, in roughly this order:
      it down, the accident that made it, the label that refused it.
   7. WHO WAS ACTUALLY THERE, when it is genuinely surprising — an uncredited player, a
      famous name in a small role.
+  8. THE WORLD IT CAME OUT OF, kind "scene": the city, the club, the label, the rival
+     band, the week it landed in. Named place, named rival, dated event.
+  9. THE DID-YOU-KNOW, kind "trivia". Every set of notes on a well-documented record
+     should carry one if a true one exists — a famous person's stated favourite, a
+     strange place it has been played, a record it kept off number one, a court that
+     quoted it, an animal or a spacecraft named after it. It has to be attributable.
+     This is the note people actually repeat, and leaving it out to be serious is a
+     failure of nerve, not of standards.
   5. WHERE THE SONG ENDED UP. A song stops belonging to the people who made it. The
      cover that outsold the original or became what everyone now means by the song; the
      film, advert, campaign, funeral, riot or football terrace it got attached to; the
@@ -61,6 +69,22 @@ What does not earn a note, however well sourced:
   - Chart positions, certifications and sales, unless something happened as a result.
   - Anything of the form "it was well received" or "it remains a fan favourite".
 
+- ONE THING PER NOTE. If a note contains two facts that could each be repeated to a
+  friend on their own, it is two notes. "They sampled an orchestral cover of a Stones
+  song, and the Stones' ex-manager sued, and in 2019 Jagger and Richards gave the rights
+  back" is three notes crushed into one paragraph, and a reader remembers none of them.
+  Split it. The reader can hold six short things and cannot hold three long ones.
+- AT MOST 45 WORDS IN A BODY. Two sentences, three if the second is short. Anything
+  longer has stopped being a liner note and become an encyclopedia paragraph, which is
+  the one thing this is not.
+- THE PEOPLE, NOT ONLY THE PRODUCTION. Who it was written about, who is in the video, who
+  was married to whom, who was in the room and what happened to them afterwards. A set of
+  notes on November Rain that never mentions that the bride in the video is Axl Rose's
+  girlfriend, and that they had split before most people saw it, has left out the part a
+  human being would tell you first.
+- PICK THE KIND BY WHAT THE NOTE IS ABOUT. A note about a music video is not "lyric". A
+  note about a lawsuit is not "origin". Two notes in a row with the same kind usually
+  means one of them is mislabelled or they should be one note.
 - Every note must contain something the listener could not have guessed from the title
   and artist alone. A note that says the song is beloved, influential, iconic, a classic,
   a fan favourite, or a standout track is worthless. Delete it.
@@ -69,6 +93,13 @@ What does not earn a note, however well sourced:
   the studio was booked Monday" is a liner note. But specificity is the standard a good
   note has to meet, not the reason it is good — a precise fact about nothing is still
   about nothing.
+- UNLESS YOU GENUINELY DO NOT KNOW, ONE NOTE MUST SAY WHAT THE SONG IS ABOUT. Not what
+  it sounds like, not how it was made — what it is about, who it was written to or for,
+  and what the writer has said it means. If the evidence carries a quote from the writer
+  on this, that quote is the note. A full set of notes that never answers "what is this
+  song about" has answered the wrong question however good the rest is.
+- At most three [[links]] in a note. Marking up every proper noun turns a sentence into
+  a wiring diagram; link the ones a reader would actually go and look at.
 - Never pad. Three notes worth repeating beat six that are merely accurate. If this
   recording genuinely has no story, write the two or three real things and stop.
 - If you don't actually know this song — covers, remasters and same-titled songs are easy
@@ -135,6 +166,8 @@ Note kinds, pick whichever the evidence actually supports:
                eclipsed it, a film or advert or protest it became attached to, a sample
                that turned it into someone else's record, something it is in the news
                for now. Name the version, the film, the year, the person
+  video      — the film made for it: who is in it, where it was shot, what it cost, what
+               it was taken from. A note about a video is never "lyric"
   lore       — what became of the band or its members. At most one per track
   scene      — the world the record came out of and what it did to it: the city, the
                club, the label, the rival band, the week it landed in. Not "it was
@@ -169,8 +202,9 @@ evidence gave you, and do not write a source on something it did not.
 
 Return ONLY a JSON object, no markdown fence:
 {
-  "headline": "one sentence naming what this record actually is, the way someone who knows it would say it to a friend. Not a summary. Not praise.",
+  "headline": "one sentence naming what this record actually is, the way someone who knows it would say it to a friend. Not a summary, and NOT PRAISE — if it contains any of: masterpiece, masterwork, breathtaking, sublime, iconic, legendary, anthem, monolithic, epic, timeless, unforgettable, seminal, definitive, agonizing, soaring — delete it and write what the record IS instead. 'Nine minutes of piano ballad that Axl Rose had been writing since before the band existed' is a headline. 'A breathtaking symphonic masterwork' is a blurb.",
   "notes": [{ "kind": "origin", "at": null, "atBasis": null, "from": "genius", "title": "four to seven words", "body": "one to three sentences" }],
+  "meaning": "one or two sentences on what the song is ABOUT — who it was written to or for, what the writer has said it means, what it is widely taken to mean and whether that is right. Quote the writer if the evidence carries them saying it. This is the second thing on the list above and it kept going missing when it was only a rule, so it is a field. Empty string ONLY if the evidence genuinely says nothing and you genuinely do not know.",
   "questions": ["three short questions THIS record invites and you have not already answered above — the thing a listener would actually wonder having heard it. Specific to this song, never generic. Six to ten words each."],
   "thread": "one sentence connecting this song to the listed recent tracks — a shared producer, player, sample, city, year, label or lineage. Only if a real connection exists. Otherwise null.",
   "confidence": "high" | "low"
@@ -199,6 +233,7 @@ export const KINDS = [
   "personnel",
   "sample",
   "version",
+  "video",
   "lyric",
   "moment",
   "afterlife",
@@ -904,6 +939,10 @@ export default async function handler(req: any, res: any) {
           .filter((q: unknown) => typeof q === "string" && q.trim().length > 6)
           .map((q: string) => q.replace(LINK, "$2").trim())
           .slice(0, 3),
+        meaning:
+          typeof parsed.meaning === "string" && parsed.meaning.trim().length > 20
+            ? parsed.meaning.replace(LINK, "$2").trim()
+            : "",
         confidence: parsed.confidence === "low" ? "low" : "high",
         sources: [...evidence.sources, ...grounded.urls].slice(0, 8),
         live: grounded.live,
