@@ -4,6 +4,7 @@
 // documents, so the notes don't depend on search-grounding quota.
 
 import { asEvidence, story as geniusStory } from "./genius.js";
+import { asEvidence as factsEvidence, songfacts } from "./songfacts.js";
 
 const UA = "exp/1.0 ( https://github.com/ )";
 
@@ -590,7 +591,7 @@ export async function gather(
   const empty = { text: "", sources: [] as [string, string][] };
   // Each source gets its own clock. Racing them as a group meant one slow catalogue
   // lookup threw away an encyclopedia article that had already arrived.
-  const [mb, band, press, genius, ...articles] = await Promise.all([
+  const [mb, band, press, genius, facts, ...articles] = await Promise.all([
     withBudget(musicbrainz(title, artist, isrc, durationMs).catch(() => empty), empty),
     // A small, story-filtered slice of the band's own article. What happened to the
     // people who made a record is often the most remarkable thing about it, and a song
@@ -601,6 +602,14 @@ export async function gather(
     // What the song has been doing lately, which no encyclopedia is fast enough to know.
     // Never waited for; see news() for why.
     news(title, artist),
+    // Less authoritative than anything else here, and frequently the only place a
+    // particular story is written down at all.
+    withBudget(
+      songfacts(title, artist)
+        .then((f) => ({ text: factsEvidence(f), sources: [] as [string, string][] }))
+        .catch(() => empty),
+      empty,
+    ),
     // The only source that is about what the song means rather than how it was made.
     withBudget(
       geniusStory(title, artist)
@@ -631,7 +640,7 @@ export async function gather(
   const value: Evidence = {
     // press has no sources of its own — headlines are a pointer, not a citation — so it
     // is joined in by hand rather than going through the de-duplicating filter above.
-    text: [genius.text, mb.text, ...kept.map((a) => a.text), band.text, press.text]
+    text: [genius.text, mb.text, ...kept.map((a) => a.text), band.text, facts.text, press.text]
       .filter(Boolean)
       .join("\n\n---\n\n"),
     sources: [...genius.sources, ...mb.sources, ...kept.flatMap((a) => a.sources), ...band.sources],

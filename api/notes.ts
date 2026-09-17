@@ -164,6 +164,13 @@ What does not earn a note, however well sourced:
       after release is written down — read them before the recording details.
     - Podcast episodes are people who did the work, often the musician themselves.
       First-hand and specific; attribute anything contested to whoever said it.
+    - Songfacts is a community database, not an encyclopedia: submitted by readers,
+      lightly edited, and the only place many small specific stories are written down.
+      A record with a dull Wikipedia page often has a good Songfacts entry, so USE it —
+      but a claim that appears only there gets attributed in the note itself, "Songfacts
+      has it that", so the reader can weigh it. If Wikipedia or Genius contradicts it,
+      they win. An interesting claim honestly labelled beats a dull certainty; an
+      interesting claim passed off as established is the one thing worse than both.
     - News headlines say only that something happened recently. Never a note on their
       own; a reason to write one about the thing they point at. Where it contradicts your own
   memory, the evidence wins. A credit list is raw material, not a note — "Producer: X" is
@@ -241,7 +248,7 @@ track's length — "2:07" — never a fraction or a percentage.
   single place in the recording.
 
 Every note carries "from": where you actually got it. One of exactly these:
-  "genius" | "musicbrainz" | "wikipedia" | "podcast" | "news" | "search" | "memory"
+  "genius" | "musicbrainz" | "wikipedia" | "songfacts" | "podcast" | "news" | "search" | "memory"
 Name the source the fact came from, not the one you would like to cite. "memory" is the
 honest answer when it was not in front of you, and it is the answer the reader most
 needs — it tells them which notes to check. Do not write "memory" on something the
@@ -267,7 +274,7 @@ const SIDE_TTL_MS = 12 * 60 * 60_000;
 const DEPTHS = ["brief", "normal", "deep"];
 
 /** Where a note came from. "memory" is the one the reader most needs to see. */
-const FROMS = ["genius", "musicbrainz", "wikipedia", "podcast", "news", "search", "memory"];
+const FROMS = ["genius", "musicbrainz", "wikipedia", "songfacts", "podcast", "news", "search", "memory"];
 
 /** How much to write, as an instruction rather than a number the model can drift past. */
 const HOW_MUCH: Record<string, string> = {
