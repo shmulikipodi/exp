@@ -640,7 +640,7 @@ export async function gather(
   const value: Evidence = {
     // press has no sources of its own — headlines are a pointer, not a citation — so it
     // is joined in by hand rather than going through the de-duplicating filter above.
-    text: [genius.text, mb.text, ...kept.map((a) => a.text), band.text, facts.text, press.text]
+    text: [genius.text, ...kept.map((a) => a.text), mb.text, band.text, facts.text, press.text]
       .filter(Boolean)
       .join("\n\n---\n\n"),
     sources: [...genius.sources, ...mb.sources, ...kept.flatMap((a) => a.sources), ...band.sources],

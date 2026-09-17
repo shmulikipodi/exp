@@ -192,3 +192,19 @@ describe("repairJson at a key position only", () => {
     expect(parseNotes('{"a":"1",,"b":"2"}').b).toBe("2");
   });
 });
+
+describe("repairJson, the malformation actually seen in the wild", () => {
+  it("restores a key whose opening quote the model dropped", () => {
+    // Caught only once the parse error started carrying what was really sent:
+    //   "from": "songfacts", title": "Written in 1987 as a student"
+    const broken = '{"from": "songfacts", title": "Written in 1987", "body": "x"}';
+    const out = parseNotes(broken);
+    expect(out.title).toBe("Written in 1987");
+    expect(out.from).toBe("songfacts");
+  });
+
+  it("leaves a stray quote inside prose alone", () => {
+    const out = parseNotes('{"body":"he called it \\"the ultimate pop song\\": his words"}');
+    expect(out.body).toContain("ultimate pop song");
+  });
+});

@@ -171,6 +171,13 @@ What does not earn a note, however well sourced:
       has it that", so the reader can weigh it. If Wikipedia or Genius contradicts it,
       they win. An interesting claim honestly labelled beats a dull certainty; an
       interesting claim passed off as established is the one thing worse than both.
+      IT SUPPLEMENTS, IT DOES NOT REPLACE. Songfacts is chatty and full of small vivid
+      things, and it will happily fill every note you have while the thing the record is
+      actually known for goes unwritten. The ranking above still decides the order: the
+      famous story, then the meaning, then the rest — and Songfacts is where you go for
+      the rest. If you have written five notes off Songfacts and not mentioned the
+      lawsuit, the ban or the refusal that everyone knows about, you have got it
+      backwards.
     - News headlines say only that something happened recently. Never a note on their
       own; a reason to write one about the thing they point at. Where it contradicts your own
   memory, the evidence wins. A credit list is raw material, not a note — "Producer: X" is
@@ -597,9 +604,13 @@ export function repairJson(text: string): string {
       .replace(/,(\s*[}\]])/g, "$1")
       // Two commas where one was meant.
       .replace(/,(\s*),/g, ",")
-      // A key in single quotes, or in none at all. Only ever at a key position — after
-      // a { or a , and before a : — so prose containing an apostrophe is untouched.
+      // A key in single quotes, in none at all, or — the one actually seen in the
+      // wild, once the error started carrying what the model sent — with its OPENING
+      // quote dropped:   "from": "songfacts", title": "Written in 1987…
+      // Only ever at a key position, after a { or a , and before a :, so prose
+      // containing an apostrophe or a colon is untouched.
       .replace(/([{,]\s*)'([^'\n]{1,60})'(\s*:)/g, '$1"$2"$3')
+      .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]{0,40})"(\s*:)/g, '$1"$2"$3')
       .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]{0,40})(\s*:)/g, '$1"$2"$3')
   );
 }
