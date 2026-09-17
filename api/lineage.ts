@@ -32,6 +32,8 @@ export type Tree = {
   about: string;
   /** Everyone credited, and what each of them did. */
   people: Person[];
+  /** Line-by-line readings of the lyrics, from Genius, for the lines that have one. */
+  readings: { line: string; note: string }[];
   /** The record this one is a cover, remix or live reading of. */
   original: Related[];
   /** Songs this one is built out of. */
@@ -255,6 +257,12 @@ export async function songTree(title: string, artist: string, isrc = ""): Promis
   const original = once((page?.original ?? []).map(asRelated), 3);
   const versions = once((page?.versions ?? []).map(asRelated), 4);
   const people = page?.people ?? [];
+  // Downloaded for the notes already and never shown to anyone. A line of a song with
+  // somebody's reading attached is the most literal form of explaining a record there
+  // is, and it was going straight into a prompt and nowhere else.
+  const readings = (page?.annotations ?? [])
+    .filter((a) => a.line && a.note)
+    .map((a) => ({ line: a.line, note: a.note }));
 
   const value: Tree = {
     found:
@@ -270,6 +278,7 @@ export async function songTree(title: string, artist: string, isrc = ""): Promis
     label: cat.label,
     about,
     people,
+    readings,
     original,
     uses,
     usedBy,

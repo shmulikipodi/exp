@@ -296,13 +296,28 @@ export const KINDS = [
  * cleaned: a string that arrives from the page must never be able to carry an
  * instruction of its own into the system prompt.
  */
+/**
+ * Is this passage really in the evidence, word for word?
+ *
+ * It is shown to the reader as the source's own sentences, under a heading that says
+ * so. A model that paraphrases while quoting produces something that looks like proof
+ * and is not, which is worse than showing nothing. Whitespace is normalised and that
+ * is all the latitude there is.
+ */
+export function inEvidence(passage: string, evidence: string): boolean {
+  const flat = (v: string) => v.replace(/\s+/g, " ").trim().toLowerCase();
+  const want = flat(passage);
+  if (want.length < 40) return false;
+  return flat(evidence).includes(want);
+}
+
 export function focusKind(value: unknown): string {
   const want = String(value ?? "").trim().toLowerCase();
   return KINDS.includes(want) ? want : "";
 }
 
 type Body = {
-  mode?: "notes" | "more" | "ask" | "artist" | "album";
+  mode?: "notes" | "more" | "ask" | "artist" | "album" | "expand";
   have?: { title: string; body: string }[];
   /** With "more": the one kind of note the reader wants three more of. */
   focus?: string;
@@ -581,6 +596,34 @@ listening to it right now. You have the same evidence the liner notes were writt
 
 Return ONLY a JSON object, no markdown fence: { "answer": "..." }`;
 
+/**
+ * A note is two sentences on purpose — a claim, not the story. This is the story.
+ *
+ * Asked for only when a reader taps the note, so it can be long where the note had to
+ * be short, and it can show its working: the passage it was drawn from, quoted, so the
+ * reader can weigh the retelling against the source instead of taking it on faith.
+ */
+const EXPAND_SYSTEM = `Someone has read a two-sentence note about a record and tapped it
+to hear the whole thing. Tell them the story properly.
+
+- Two or three paragraphs. Assume they have read the note; do not restate it and never
+  open by repeating its title back at them. Start where the note stopped.
+- Tell it as a sequence: what led to it, what happened, what came of it. Names, dates,
+  rooms, sums of money, who said what to whom.
+- Say what is disputed. If accounts differ — and on a famous story they usually do —
+  give both and say who says which. "X has told it two ways" is a fact worth having.
+- Quote people. Their words, in quotation marks, exactly as the evidence has them.
+- If the evidence does not actually support the note beyond what the note already says,
+  say so in one sentence and stop. A short honest answer beats three padded paragraphs.
+- No praise, no summing up, no telling the reader what to feel.
+
+Also return the single passage from the evidence this rests on, copied EXACTLY, so the
+reader can check it. Never paraphrase it, never stitch two passages together, and if
+nothing in the evidence carries the claim, return "" for it.
+
+Return ONLY a JSON object, no markdown fence:
+{ "story": "two or three paragraphs, separated by \\n\\n", "passage": "the exact sentences from the evidence, or \"\"", "passageFrom": "Genius | Wikipedia | MusicBrainz | a podcast | the news" }`;
+
 // This goes at the TOP of the prompt, not the bottom. All the evidence is in English,
 // which pulls hard towards answering in English — a language rule tacked on after four
 // hundred words of instructions gets dropped, especially by the lighter models.
@@ -778,6 +821,46 @@ export default async function handler(req: any, res: any) {
       : "No catalogue or encyclopedia entry was found for this recording. Be correspondingly careful.\n\n";
 
     // A question about the record, or about one note in it.
+    if (body.mode === "expand") {
+      const note = body.about;
+      if (!note?.title) {
+        res.statusCode = 400;
+        return res.end(JSON.stringify({ error: "note required" }));
+      }
+
+      const asked =
+        `${facts}\n\n${evidenceBlock}${podcastBlock}${mentionBlock}${lyricBlock}` +
+        `The note the reader tapped:\n"${note.title}" — ${note.body}\n\n` +
+        `Tell them the whole story behind it.`;
+
+      const sys = hebrew ? `${HEBREW_HEADER}${EXPAND_SYSTEM}` : EXPAND_SYSTEM;
+      let out = await ground(sys, asked, MODEL, userKeys);
+      let parsedOut = parseNotes(out.text);
+
+      if (hebrew && !looksHebrew(String(parsedOut.story ?? ""))) {
+        out = await ground(
+          sys,
+          `${asked}\n\nYour previous attempt was written in English. That was wrong. Write it in Hebrew.`,
+          MODEL,
+          userKeys,
+        );
+        parsedOut = parseNotes(out.text);
+      }
+
+      return res.end(
+        JSON.stringify({
+          story: String(parsedOut.story ?? "").trim(),
+          // The passage is quoted to the reader as the source's own words, so it has to
+          // be the source's own words: anything the model rewrote is thrown away.
+          passage: inEvidence(String(parsedOut.passage ?? ""), evidence.text)
+            ? String(parsedOut.passage).trim()
+            : "",
+          passageFrom: String(parsedOut.passageFrom ?? "").slice(0, 40),
+          sources: [...evidence.sources, ...out.urls].slice(0, 6),
+        }),
+      );
+    }
+
     if (body.mode === "ask") {
       const question = (body.question ?? "").trim();
       if (!question) {

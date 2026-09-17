@@ -18,6 +18,7 @@ export type Tree = {
   label: string;
   about: string;
   people: Person[];
+  readings: { line: string; note: string }[];
   original: Related[];
   uses: Related[];
   usedBy: Related[];
@@ -36,6 +37,7 @@ export const NO_TREE: Tree = {
   label: "",
   about: "",
   people: [],
+  readings: [],
   original: [],
   uses: [],
   usedBy: [],

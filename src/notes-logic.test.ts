@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MIN_NOTES, dividerWidth, grabOffset, matchesLang, shape, weave } from "./notes-logic";
+import { MIN_NOTES, dividerWidth, grabOffset, matchReadings, matchesLang, shape, weave } from "./notes-logic";
 
 const note = (body: string) => ({ body });
 
@@ -225,5 +225,50 @@ describe("weave with the song's shape", () => {
     expect(kinds).toContain("section");
     expect(kinds).toContain("note");
     expect(kinds.filter((k) => k === "line")).toHaveLength(4);
+  });
+});
+
+describe("matchReadings", () => {
+  const lines = [
+    { text: "With the lights out, it's less dangerous" },
+    { text: "Here we are now, entertain us" },
+    { text: "I feel stupid and contagious" },
+  ];
+
+  it("matches through different punctuation and capitals", () => {
+    const found = matchReadings(lines, [
+      { line: "with the lights out its less dangerous", note: "About the needle." },
+    ]);
+    expect(found.get(0)).toBe("About the needle.");
+  });
+
+  it("marks the first line when the reading quotes several at once", () => {
+    // Genius quotes a run of lines as one fragment; the synced words arrive one at a
+    // time. The reader expects to find the note at the top of the run.
+    const found = matchReadings(lines, [
+      {
+        line: "Here we are now, entertain us / I feel stupid and contagious",
+        note: "The chorus.",
+      },
+    ]);
+    expect(found.get(1)).toBe("The chorus.");
+    expect(found.has(2)).toBe(false);
+  });
+
+  it("gives one reading per line rather than stacking them", () => {
+    const found = matchReadings(lines, [
+      { line: "Here we are now, entertain us", note: "First." },
+      { line: "Here we are now, entertain us", note: "Second." },
+    ]);
+    expect(found.get(1)).toBe("First.");
+    expect(found.size).toBe(1);
+  });
+
+  it("ignores a fragment too short to identify anything", () => {
+    expect(matchReadings(lines, [{ line: "[Chorus]", note: "x" }]).size).toBe(0);
+  });
+
+  it("returns nothing rather than guessing when nothing lines up", () => {
+    expect(matchReadings(lines, [{ line: "a completely different song", note: "x" }]).size).toBe(0);
   });
 });

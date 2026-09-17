@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allHebrew, focusKind, looksHebrew, parseAnswer, parseNotes, toFraction } from "../notes.js";
+import { allHebrew, focusKind, inEvidence, looksHebrew, parseAnswer, parseNotes, toFraction } from "../notes.js";
 
 describe("parseNotes", () => {
   it("reads plain JSON", () => {
@@ -108,5 +108,30 @@ describe("focusKind", () => {
     expect(focusKind(null)).toBe("");
     expect(focusKind({ kind: "lore" })).toBe("");
     expect(focusKind(42)).toBe("");
+  });
+});
+
+describe("inEvidence", () => {
+  const evidence = `Wikipedia — Hotel California
+Producer Bill Szymczyk assembled the master   recording by
+razor-splicing 33 separate edit pieces from the best takes.`;
+
+  it("takes a passage the evidence really contains, whatever the line breaks", () => {
+    expect(
+      inEvidence("Bill Szymczyk assembled the master recording by razor-splicing 33 separate edit pieces", evidence),
+    ).toBe(true);
+  });
+
+  it("refuses a passage the model tidied on the way out", () => {
+    // Shown to the reader as the source's own words, under a heading that says so. A
+    // paraphrase in quotation marks looks like proof and is not.
+    expect(
+      inEvidence("Szymczyk built the final master from 33 separate tape splices", evidence),
+    ).toBe(false);
+  });
+
+  it("refuses something too short to be worth quoting", () => {
+    expect(inEvidence("33 splices", evidence)).toBe(false);
+    expect(inEvidence("", evidence)).toBe(false);
   });
 });

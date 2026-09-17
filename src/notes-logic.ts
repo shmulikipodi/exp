@@ -210,3 +210,49 @@ export function shape(lines: LyricLine[], durationMs: number): Section[] {
 
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Somebody's reading of a particular line.
+
+export type Reading = { line: string; note: string };
+
+const flat = (s: string) =>
+  s
+    .toLowerCase()
+    // Apostrophes vanish rather than becoming spaces: one source writes "it's" and the
+    // other "its", and turning both into "it s" against "its" matches nothing.
+    .replace(/['\u2019\u02bc]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/**
+ * Attach each reading to the lyric line it is about.
+ *
+ * The two come from different places and do not agree on punctuation, capitals or
+ * where a line ends: Genius quotes a run of several lines as one fragment, and the
+ * synced words arrive one line at a time. So the match is containment either way
+ * round, on letters and numbers only. A fragment covering four lines marks the first
+ * of them, which is where a reader would expect to find it.
+ */
+export function matchReadings(lines: { text: string }[], readings: Reading[]): Map<number, string> {
+  const found = new Map<number, string>();
+  const flatLines = lines.map((l) => flat(l.text));
+
+  for (const reading of readings) {
+    const fragment = flat(reading.line);
+    if (fragment.length < 8) continue;
+
+    let best = -1;
+    for (let i = 0; i < flatLines.length; i++) {
+      const line = flatLines[i];
+      if (line.length < 8 || found.has(i)) continue;
+      if (fragment.includes(line) || line.includes(fragment)) {
+        best = i;
+        break;
+      }
+    }
+    if (best >= 0) found.set(best, reading.note);
+  }
+  return found;
+}

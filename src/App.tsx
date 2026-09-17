@@ -24,7 +24,7 @@ import {
 } from "./spotify";
 import { STRINGS, storedLang, storeLang, type Lang } from "./i18n";
 import { accentFrom, paletteFrom, type Swatch } from "./palette";
-import { dividerWidth, grabOffset, matchesLang, shape, weave } from "./notes-logic";
+import { dividerWidth, grabOffset, matchReadings, matchesLang, shape, weave } from "./notes-logic";
 import { Keys, liveKeys } from "./Keys";
 import { onPlayer, startPlayer, type PlayerState } from "./player";
 import { History } from "./History";
@@ -58,6 +58,11 @@ type Note = {
   from?: string;
   title: string;
   body: string;
+  /** The whole story, fetched when the reader taps the note and kept from then on. */
+  story?: string;
+  /** The passage it rests on, in the source's own words, verified against the evidence. */
+  passage?: string;
+  passageFrom?: string;
 };
 type Answer = {
   id: string;
@@ -779,6 +784,25 @@ export default function App() {
   const sungNow = words.length
     ? words.reduce((f, l, i) => (l.at <= progress / 1000 ? i : f), -1)
     : -1;
+  // Somebody's reading of a particular line, for the lines that have one. Free: it was
+  // downloaded with the record's family and only ever handed to the model.
+  const readings = useMemo(
+    () => matchReadings(lyrics ?? [], tree?.readings ?? []),
+    [lyrics, tree],
+  );
+  const [openLine, setOpenLine] = useState<number | null>(null);
+
+  /** Double-clicking a line asks for a reading of it — free if Genius already has one. */
+  const explainLine = useCallback(
+    (index: number, text: string) => {
+      if (openLine === index) return setOpenLine(null);
+      setOpenLine(index);
+      if (readings.has(index) || !text.trim() || busy !== "") return;
+      ask(t.explainLine(text), null);
+    },
+    [openLine, readings, busy, t],
+  );
+
   const reading = useReading();
   useEffect(() => {
     if (sungNow < 0 || isReading(reading)) return;
@@ -884,6 +908,62 @@ export default function App() {
     setError("");
     setReload((r) => r + 1);
   }, [targetOf, busy]);
+
+  const [opened, setOpened] = useState<string | null>(null);
+
+  /**
+   * The whole story behind a note.
+   *
+   * A note is two sentences on purpose: it is the claim, and this is what stands behind
+   * it. Fetched once and written into the stored notes, so the second reading of a
+   * record costs nothing and the story survives a reload.
+   */
+  const openNote = useCallback(
+    async (note: Note) => {
+      if (opened === note.title) return setOpened(null);
+      setOpened(note.title);
+      const target = targetOf();
+      const have = viewing ? viewing.notes : notes;
+      if (note.story || !target || !have || busy !== "") return;
+
+      setBusy(`open:${note.title}`);
+      setError("");
+      try {
+        const data = await post<{
+          story: string;
+          passage: string;
+          passageFrom: string;
+        }>({
+          ...subject(),
+          mode: "expand",
+          about: { title: note.title, body: note.body },
+          keys: liveKeys(),
+        });
+        persist(
+          {
+            ...have,
+            notes: have.notes.map((n) =>
+              n.title === note.title
+                ? {
+                    ...n,
+                    story: data.story,
+                    passage: data.passage,
+                    passageFrom: data.passageFrom,
+                  }
+                : n,
+            ),
+          },
+          target,
+        );
+      } catch (e) {
+        setError((e as Error).message);
+        setOpened(null);
+      } finally {
+        setBusy("");
+      }
+    },
+    [opened, targetOf, viewing, notes, busy, subject, persist],
+  );
 
   const askMore = useCallback(async () => {
     const target = targetOf();
@@ -1597,17 +1677,30 @@ export default function App() {
                                 : Math.min(7, item.index - sungNow),
                           } as React.CSSProperties
                         }
+                        title={t.lineHint}
                         className={`woven${
                           item.index === sungNow ? " now" : item.index < sungNow ? " sung" : ""
-                        }${canGo ? " seekable" : ""}`}
+                        }${canGo ? " seekable" : ""}${readings.has(item.index) ? " read" : ""}${
+                          openLine === item.index ? " asked" : ""
+                        }`}
                         onClick={
                           canGo ? () => run(() => seek(to), () => setProgress(to)) : undefined
                         }
+                        // One click goes to the line; two asks what it means. A line
+                        // Genius has already explained answers instantly and for
+                        // nothing — that reading was downloaded hours ago.
+                        onDoubleClick={() => explainLine(item.index, item.line.text)}
                       >
                         {item.line.text || "·"}
                         {rendered.lines?.[item.index] ? (
                           <span className="rendered">{rendered.lines[item.index]}</span>
                         ) : null}
+                        {openLine === item.index && readings.has(item.index) && (
+                          <span className="reading">
+                            {readings.get(item.index)}
+                            <cite>Genius</cite>
+                          </span>
+                        )}
                       </p>
                     );
                   }
@@ -1619,22 +1712,18 @@ export default function App() {
                   // arrived the same size.
                   const lead = i === 0;
                   const picture = pictureFor(tree, n);
-                  // Only a note that names a moment is a place you can go. A note with
-                  // no moment schedules at 0, which is "available from the start" — not
-                  // "the song starts here".
-                  const seekable =
-                    n.at !== null && !viewing && canControl !== false && track.durationMs > 0;
-
                   return (
                   <article
                     key={`${n.title}-${i}`}
-                    className={`note${lead ? " lead" : ""}${picture ? " withart" : ""}${seekable ? " seekable" : ""}`}
+                    className={`note${lead ? " lead" : ""}${picture ? " withart" : ""}${
+                      opened === n.title ? " open" : ""
+                    }`}
+                    // Tapping a note opens it. It used to jump the track, which is a
+                    // surprising thing for a paragraph of text to do — the timestamp
+                    // beside it is the thing that moves the record, and always was.
                     onClick={(e) => {
-                      // The buttons inside a note do their own thing.
                       if ((e.target as HTMLElement).closest("button, a, input, form")) return;
-                      if (!seekable) return;
-                      const to = n.at! * track.durationMs;
-                      run(() => seek(to), () => setProgress(to));
+                      openNote(n);
                     }}
                   >
                     {picture && (
@@ -1675,6 +1764,46 @@ export default function App() {
                       t={t}
                       />
                     </p>
+
+                    {opened === n.title && (
+                      <div className="story">
+                        {busy === `open:${n.title}` && <p className="loading">{t.thinking}</p>}
+                        {n.story
+                          ?.split(/\n{2,}/)
+                          .filter(Boolean)
+                          .map((para, p) => (
+                            <p key={p}>
+                              <Linked
+                                text={para}
+                                links={activeNotes.links}
+                                onPlay={playNamed}
+                                onOpenArtist={openArtist}
+                                t={t}
+                              />
+                            </p>
+                          ))}
+                        {/* The source's own sentences, checked against the evidence
+                            before they are shown as a quotation. */}
+                        {n.passage && (
+                          <blockquote className="passage">
+                            {n.passage}
+                            {n.passageFrom && <cite>{n.passageFrom}</cite>}
+                          </blockquote>
+                        )}
+                        {n.story && (
+                          <button
+                            className="link"
+                            disabled={busy !== ""}
+                            onClick={() => {
+                              setOnlyKind(n.kind);
+                              askMore();
+                            }}
+                          >
+                            {t.moreOf(t.kinds[n.kind] ?? n.kind)}
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                     {n.from && (
                       <p className={`whence${n.from === "memory" ? " unsourced" : ""}`}>

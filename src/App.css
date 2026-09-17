@@ -1087,7 +1087,39 @@ body.dragging { cursor: col-resize; user-select: none; }
 .whence a:hover { color: var(--accent); border-bottom-color: var(--accent-dim); }
 .whence.unsourced { color: #d9a05b; opacity: 0.85; }
 
-.note.seekable { cursor: pointer; }
+.note { cursor: pointer; }
+.note:hover h3 { color: var(--accent); }
+.note.open { padding-bottom: 3vh; }
+
+/* The whole story behind a note, once it is asked for. Set narrower than the note it
+   belongs to, so an open note reads as a thing inside a thing rather than as the
+   column suddenly changing its mind about margins. */
+.story {
+  margin: 18px 0 0;
+  padding-inline-start: 16px;
+  border-inline-start: 2px solid var(--line);
+}
+.story p { font: var(--body-weight) 15px/1.68 var(--serif); color: var(--dim); margin: 0 0 14px; }
+.story > .link { font: 12px var(--mono); color: var(--accent); }
+
+/* The source's own sentences, checked word for word against the evidence before being
+   shown as a quotation. */
+.passage {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 4px;
+  background: rgba(243,237,227,0.05);
+  font: italic 13px/1.6 var(--serif);
+  color: var(--faint);
+}
+.passage cite {
+  display: block;
+  margin-top: 8px;
+  font: 600 9px var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-style: normal;
+}
 /* The whole note sends you to the moment it describes, so it needs to look touchable
    without turning the reading column into a grid of buttons. */
 .note.seekable:hover h3 { color: var(--accent); }
@@ -1307,6 +1339,42 @@ body.dragging { cursor: col-resize; user-select: none; }
   transition: opacity 0.4s ease, color 0.4s ease;
 }
 .woven.seekable { cursor: pointer; }
+
+/* A line somebody has written about. The mark is small on purpose: it says there is
+   something here, not look at me. */
+.woven.read::after {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-inline-start: 8px;
+  vertical-align: 0.35em;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.55;
+}
+.woven.asked::after { opacity: 1; }
+
+/* What somebody says the line means, sitting under the line itself. */
+.reading {
+  display: block;
+  margin: 8px 0 14px;
+  padding-inline-start: 14px;
+  border-inline-start: 2px solid var(--accent-dim);
+  font: var(--body-weight) 14px/1.6 var(--serif);
+  letter-spacing: 0;
+  color: var(--dim);
+  text-wrap: pretty;
+}
+.reading cite {
+  display: block;
+  margin-top: 6px;
+  font: 600 9px var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-style: normal;
+  color: var(--faint);
+}
 .woven.sung { color: #f3ede3; opacity: 0.92; }
 .woven.now { position: relative; color: #fff; opacity: 1; }
 /* Scrolling means reading, and blurred text cannot be read. */
