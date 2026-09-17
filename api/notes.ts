@@ -1150,7 +1150,29 @@ export default async function handler(req: any, res: any) {
     const askedIn = hebrew ? `${user}\n\nWrite all of it in Hebrew.` : user;
 
     let grounded = await ground(system, askedIn, MODEL, userKeys);
-    let parsed = parseNotes(grounded.text);
+    let parsed: any;
+    try {
+      parsed = parseNotes(grounded.text);
+    } catch {
+      // Ask again rather than guess again.
+      //
+      // Three rounds of repair regexes caught three different malformations and a
+      // fourth turned up anyway — a dropped opening quote, then a doubled comma, then
+      // an unescaped one inside a value. The set of ways to write broken JSON is not
+      // enumerable, and a reader losing every note over a punctuation mark is not a
+      // trade worth defending. One more call costs a request; the repairs stay as the
+      // cheap first attempt.
+      grounded = await ground(
+        system,
+        `${askedIn}\n\nYour previous reply could not be parsed as JSON. Return the same ` +
+          `content again as a single valid JSON object and nothing else: every key and ` +
+          `every string value in double quotes, no trailing commas, no comments, and any ` +
+          `quotation mark inside a string escaped as \\".`,
+        MODEL,
+        userKeys,
+      );
+      parsed = parseNotes(grounded.text);
+    }
 
     // Verify rather than hope. One retry, with the instruction made blunt.
     if (hebrew && !allHebrew(parsed)) {
