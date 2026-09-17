@@ -3,6 +3,10 @@
 :root {
   /* Set from JS: the window height with any zoom divided back out. */
   --app-h: 100dvh;
+  /* The width of everything in the reading column. In rem, not em: an em resolves
+     against the element's own font-size, so a measure written once as "30em" came out
+     a different number of pixels on every kind of block in the column. */
+  --measure: 34rem;
 
   /* One set, chosen. Bevan announces, Roboto Slab reads, Plex Mono labels, Archivo
      names things. Bevan has a single weight and is heavy by design: it carries a 40px
@@ -253,6 +257,7 @@ button.ghost:hover { color: var(--dim); background: none; }
 .lineage .help span { display: block; margin-top: 6px; font-size: 12px; opacity: 0.7; }
 
 .about { display: flex; flex-direction: column; gap: 12px; }
+.about p b { display: block; margin-bottom: 4px; font: 600 11px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
 .about p { margin: 0; font: 14px/1.6 var(--serif); color: var(--dim); text-wrap: pretty; }
 .about button {
   align-self: flex-start;
@@ -579,7 +584,7 @@ button.ghost:hover { color: var(--dim); background: none; }
   font-size: 13px;
   line-height: 1.5;
   color: var(--dim);
-  max-width: 38ch;
+  max-width: var(--measure);
 }
 .up-next b {
   font: 600 10px var(--mono);
@@ -601,7 +606,7 @@ button.ghost:hover { color: var(--dim); background: none; }
   margin: 14px 0 0;
   font: 12px var(--mono);
   color: var(--faint);
-  max-width: 34ch;
+  max-width: var(--measure);
 }
 .player-line .link { font: inherit; color: var(--accent); border-bottom-color: var(--accent-dim); }
 
@@ -610,7 +615,7 @@ button.ghost:hover { color: var(--dim); background: none; }
   font-size: 12px;
   line-height: 1.5;
   color: var(--faint);
-  max-width: 34ch;
+  max-width: var(--measure);
 }
 .control-note button { margin-inline-start: 6px; color: var(--accent); }
 
@@ -1057,7 +1062,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 
 /* What the song is about, before anything about how it was made. */
 .meaning {
-  max-width: 30em;
+  max-width: var(--measure);
   margin: 0 0 28px;
   padding-inline-start: 14px;
   border-inline-start: 2px solid var(--accent);
@@ -1162,7 +1167,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 .note.seekable:hover .jump { background: var(--accent); color: #14100a; border-color: var(--accent); }
 
 .note {
-  max-width: 30em;
+  max-width: var(--measure);
   padding: 0 0 6vh;
   animation: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -1215,7 +1220,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 .stale button { margin-inline-start: 8px; font: 12px var(--mono); color: var(--accent); }
 
 .conversation {
-  max-width: 30em;
+  max-width: var(--measure);
   margin-top: 7vh;
   padding-top: 20px;
   border-top: 1px solid var(--line);
@@ -1243,19 +1248,32 @@ body.dragging { cursor: col-resize; user-select: none; }
 .words.reading .lyric-line.now { opacity: 1; }
 
 /* ---------- the opening plate ----------
-   Everything the reader needs before the first note: whose record this is, what it is,
-   and what it is about. Set as one block in the sleeve's colour rather than three grey
-   paragraphs in whatever order they left the model. */
+   A masthead: the sleeve beside the name of the thing, then what the record is and what
+   it is about. The artwork is the best asset this app has and the reading column was
+   the one place it never appeared. */
 .plate {
-  max-width: 24em;
-  margin: 0 0 8vh;
-  padding: 0 0 26px;
+  max-width: var(--measure);
+  margin: 0 0 7vh;
+  padding: 0 0 28px;
   border-bottom: 1px solid var(--line);
 }
-.plate-art { display: none; }
-
+.plate-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.plate-art {
+  width: clamp(96px, 11vw, 150px);
+  aspect-ratio: 1;
+  flex-shrink: 0;
+  border-radius: 3px;
+  object-fit: cover;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(243,237,227,0.09);
+}
+.plate-names { min-width: 0; }
 .plate-kicker {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   font: 600 10px var(--mono);
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -1263,28 +1281,27 @@ body.dragging { cursor: col-resize; user-select: none; }
 }
 .plate-kicker span { color: var(--faint); }
 .plate-title {
-  margin: 0 0 18px;
-  font: var(--display-weight) clamp(30px, 3.4vw, 54px)/1.03 var(--display);
+  margin: 0;
+  font: var(--display-weight) clamp(28px, 3vw, 46px)/1.02 var(--display);
   letter-spacing: -0.025em;
   color: var(--ink);
   text-wrap: balance;
 }
 .plate-line {
   margin: 0 0 14px;
-  font: var(--body-weight) clamp(17px, 1.35vw, 21px)/1.45 var(--serif);
+  font: var(--body-weight) clamp(17px, 1.3vw, 20px)/1.45 var(--serif);
   color: var(--ink);
   text-wrap: pretty;
 }
 .plate-meaning {
+  max-width: var(--measure);
   margin: 0;
   font: var(--body-weight) 15px/1.62 var(--serif);
   color: var(--dim);
   text-wrap: pretty;
 }
 
-/* Somebody's own words, given the size they earn. The notes are written to quote
-   people rather than report them; a quote set in the same grey as the sentence around
-   it throws that away. */
+/* Somebody's own words, given the size they earn. */
 .said {
   font-family: var(--serif);
   font-size: 1.06em;
@@ -1293,10 +1310,33 @@ body.dragging { cursor: col-resize; user-select: none; }
 }
 .note.lead .said { color: var(--accent); }
 
-/* A face for a note about a person, a sleeve for a note about another record — both
-   already downloaded for the column beside this one. */
-/* A grid rather than a float: floating indented the body's first line around the
-   picture and left every line after it hanging, which reads as a mistake. */
+/* ---------- a note as an object ----------
+   Each one was a paragraph in a wall of paragraphs. A surface with an edge in its own
+   colour makes it a thing you can look at, count, and skip — and the kind stops being
+   a word you have to read to know what you are looking at. */
+.note {
+  position: relative;
+  max-width: var(--measure);
+  margin: 0 0 20px;
+  padding: 20px 22px;
+  border-radius: 6px;
+  background: rgba(243,237,227,0.032);
+  box-shadow: inset 3px 0 0 var(--edge, var(--line));
+  transition: background 0.18s, box-shadow 0.18s;
+  animation: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+[dir="rtl"] .note { box-shadow: inset -3px 0 0 var(--edge, var(--line)); }
+.note:hover { background: rgba(243,237,227,0.055); }
+
+.note.origin, .note.scene { --edge: #8fbf9f; }
+.note.room, .note.moment { --edge: #d9a05b; }
+.note.sample, .note.personnel { --edge: #7fb3d5; }
+.note.afterlife, .note.video { --edge: #b98cc9; }
+.note.lore { --edge: #c98b8b; }
+.note.trivia { --edge: #d98fb0; }
+.note.lyric { --edge: #c7b06a; }
+
+/* A face for a note about a person, a sleeve for a note about another record. */
 .note.withart {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -1315,12 +1355,12 @@ body.dragging { cursor: col-resize; user-select: none; }
 }
 .note-art.round { border-radius: 50%; }
 
-/* The first note is what the record is known for. It was arriving the same size as the
-   sixth, which is the ranking computed and then thrown away. */
-.note.lead h3 { font-size: clamp(23px, 1.95vw, 31px); }
-/* :not(.whence) — the attribution is a paragraph too, and a direct child, so the lead
-   rule was setting it in reading type at a specificity nothing below could beat. */
-.note.lead > p:not(.whence) { font-size: clamp(17px, 1.2vw, 20px); line-height: 1.6; color: var(--ink); }
+/* The first note is what the record is known for. */
+.note.lead {
+  padding: 26px 26px 24px;
+  background: rgba(243,237,227,0.06);
+}
+.note.lead h3 { font-size: clamp(23px, 1.95vw, 30px); }
 .note.lead .note-art { width: 76px; height: 76px; }
 
 /* ---------- the words, with the notes standing in them ----------
@@ -1365,7 +1405,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 
 .woven {
   margin: 0 0 6px;
-  max-width: 26em;
+  max-width: var(--measure);
   font: var(--display-weight, 700) clamp(19px, 1.55vw, 26px)/1.3 var(--display);
   letter-spacing: -0.018em;
   color: #f3ede3;
@@ -1439,7 +1479,7 @@ body.dragging { cursor: col-resize; user-select: none; }
   flex-wrap: wrap;
   gap: 6px;
   margin: 0 0 30px;
-  max-width: 30em;
+  max-width: var(--measure);
 }
 .kinds button {
   padding: 4px 10px;
@@ -1533,7 +1573,7 @@ body.dragging { cursor: col-resize; user-select: none; }
   display: flex;
   align-items: center;
   gap: 6px;
-  max-width: 30em;
+  max-width: var(--measure);
   margin-top: 14px;
   opacity: 0;
   transition: opacity 0.2s;
@@ -1563,7 +1603,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 .note-actions button:hover { color: var(--ink); border-color: rgba(243,237,227,0.3); background: none; }
 .note-actions .reject:hover { color: #e06c5b; border-color: rgba(224,108,91,0.45); }
 
-.ask { display: flex; gap: 8px; margin-top: 14px; max-width: 30em; }
+.ask { display: flex; gap: 8px; margin-top: 14px; max-width: var(--measure); }
 .ask input {
   flex: 1;
   padding: 9px 12px;
@@ -1578,7 +1618,7 @@ body.dragging { cursor: col-resize; user-select: none; }
   background: rgba(243,237,227,0.04);
   border-inline-start: 2px solid var(--accent-dim);
   border-radius: 0 10px 10px 0;
-  max-width: 30em;
+  max-width: var(--measure);
 }
 [dir="rtl"] .answer { border-radius: 10px 0 0 10px; }
 .answer.standalone { margin-bottom: 5vh; }
@@ -1614,7 +1654,7 @@ body.dragging { cursor: col-resize; user-select: none; }
   flex-direction: column;
   gap: 12px;
   align-items: flex-start;
-  max-width: 30em;
+  max-width: var(--measure);
   margin: 8px 0 28px;
   padding-top: 24px;
   border-top: 1px solid var(--line);
@@ -1632,7 +1672,7 @@ body.dragging { cursor: col-resize; user-select: none; }
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  max-width: 30em;
+  max-width: var(--measure);
   padding-top: 24px;
   border-top: 1px solid var(--line);
   font: 12px var(--mono);
@@ -1640,7 +1680,7 @@ body.dragging { cursor: col-resize; user-select: none; }
 }
 .pending button { padding: 8px 14px; font-size: 12px; }
 
-footer { max-width: 30em; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); }
+footer { max-width: var(--measure); margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); }
 
 .sources { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
 .sources a {
@@ -1665,7 +1705,7 @@ footer { max-width: 30em; margin-top: 48px; padding-top: 24px; border-top: 1px s
 .idle p { color: var(--faint); margin: 0; }
 
 .warn { font-size: 12px; line-height: 1.5; color: #d9a05b; margin: 0 0 12px; }
-.error { font-size: 13px; color: #e06c5b; margin: 16px 0 0; max-width: 30em; }
+.error { font-size: 13px; color: #e06c5b; margin: 16px 0 0; max-width: var(--measure); }
 
 /* ---------- language ---------- */
 

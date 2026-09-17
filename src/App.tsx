@@ -1028,6 +1028,27 @@ export default function App() {
     [current, subject, persist, targetOf, viewing, playing, busy, t],
   );
 
+  // Who they are and what the record is, fetched without being asked for.
+  //
+  // These were buttons, so in practice nobody ever saw them — the one part of the side
+  // column that explains anything sat behind a click nobody knew to make. They are
+  // cheap now: the server keeps them per artist and per album rather than per track, so
+  // a whole album costs one of each.
+  const wanted = useRef(new Set<string>());
+  useEffect(() => {
+    if (!activeNotes || viewing || busy !== "" || !playing?.artists?.[0]) return;
+    const answers = activeNotes.answers ?? [];
+    for (const topic of ["artist", "album"] as const) {
+      if (topic === "album" && !playing.album) continue;
+      if (answers.some((a) => a.about === `topic:${topic}`)) continue;
+      const key = `${topic}:${playing.artists[0]}:${topic === "album" ? playing.album : ""}:${lang}`;
+      if (wanted.current.has(key)) continue;
+      wanted.current.add(key);
+      askTopic(topic);
+      return; // one at a time: the second would be refused while the first is in flight
+    }
+  }, [activeNotes, viewing, busy, playing?.artists, playing?.album, lang, askTopic]);
+
   // The model can place a moment to within a few seconds; a listener can place it
   // exactly. Pressing this while the thing is happening is the only way to be certain,
   // and it sticks — the note is saved where you heard it.
@@ -1557,18 +1578,19 @@ export default function App() {
                     designed block in the sleeve's own colour, rather than three grey
                     paragraphs stacked in the order they came out of the JSON. */}
                 <header className="plate">
-                  {/* Only on the phone, where there is no column beside this one to
-                      hold it. The desktop dropped the cover on purpose: it is already
-                      in the bar along the bottom. */}
-                  {track.art && (
-                    <img className="plate-art" src={track.art} alt="" crossOrigin="anonymous" />
-                  )}
-                  <p className="plate-kicker">
-                    {track.artists.join(", ")}
-                    {track.album && <span> · {track.album}</span>}
-                    {track.released && <span> · {track.released.slice(0, 4)}</span>}
-                  </p>
-                  <h1 className="plate-title">{track.title}</h1>
+                  <div className="plate-head">
+                    {track.art && (
+                      <img className="plate-art" src={track.art} alt="" crossOrigin="anonymous" />
+                    )}
+                    <div className="plate-names">
+                      <p className="plate-kicker">
+                        {track.artists.join(", ")}
+                        {track.album && <span> · {track.album}</span>}
+                        {track.released && <span> · {track.released.slice(0, 4)}</span>}
+                      </p>
+                      <h1 className="plate-title">{track.title}</h1>
+                    </div>
+                  </div>
                   {activeNotes.headline && (
                     <p className="plate-line">
                       <Linked
@@ -1673,7 +1695,7 @@ export default function App() {
                   return (
                   <article
                     key={`${n.title}-${i}`}
-                    className={`note${lead ? " lead" : ""}${picture ? " withart" : ""}${
+                    className={`note ${n.kind}${lead ? " lead" : ""}${picture ? " withart" : ""}${
                       opened === n.title ? " open" : ""
                     }${nowHere ? " here" : ""}`}
                     // Tapping a note opens it. It used to jump the track, which is a

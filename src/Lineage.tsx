@@ -145,17 +145,25 @@ export function Lineage({
       <p className="tree-head">{t.treeAbout}</p>
       <div className="about">
         {artistText ? (
-          <p>{artistText}</p>
+          <p>
+            <b>{artist}</b> {artistText}
+          </p>
+        ) : busy === "artist" ? (
+          <p className="loading">{t.thinking}</p>
         ) : (
-          <button className="link" disabled={busy !== ""} onClick={() => onAsk("artist")}>
-            {busy === "artist" ? t.thinking : t.whoAreThey(artist)}
+          <button className="link" onClick={() => onAsk("artist")}>
+            {t.whoAreThey(artist)}
           </button>
         )}
         {albumText ? (
-          <p>{albumText}</p>
+          <p>
+            <b>{album}</b> {albumText}
+          </p>
+        ) : busy === "album" ? (
+          <p className="loading">{t.thinking}</p>
         ) : (
-          <button className="link" disabled={busy !== ""} onClick={() => onAsk("album")}>
-            {busy === "album" ? t.thinking : t.whatIsRecord(album)}
+          <button className="link" onClick={() => onAsk("album")}>
+            {t.whatIsRecord(album)}
           </button>
         )}
       </div>
