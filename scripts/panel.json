@@ -1,0 +1,86 @@
+{
+  "comment": "Records whose stories are well enough known that a miss is unambiguous. Each `wants` is one fact, given as alternative spellings of it — any match counts. Add a row whenever the app misses something it should have had; that is what turns a disappointment into a regression test.",
+  "songs": [
+    {
+      "title": "November Rain", "artists": ["Guns N Roses"], "album": "Use Your Illusion I", "durationMs": 536000,
+      "wants": {
+        "the video's cost": ["most expensive", "expensive music video"],
+        "three solos": ["three solo", "three guitar solo", "third solo"],
+        "years in the making": ["1983", "decade", "years before", "eight years", "nine years"],
+        "Stephanie Seymour": ["seymour"]
+      }
+    },
+    {
+      "title": "Stairway to Heaven", "artists": ["Led Zeppelin"], "album": "Led Zeppelin IV", "durationMs": 482000,
+      "wants": {
+        "the backmasking trial": ["backward", "backmask", "satan"],
+        "the Taurus lawsuit": ["taurus", "spirit"],
+        "never a single": ["single", "refused to release"]
+      }
+    },
+    {
+      "title": "What's Going On", "artists": ["Marvin Gaye"], "album": "What's Going On", "durationMs": 233000,
+      "wants": {
+        "Gordy's refusal": ["gordy", "worst thing", "refused to release"],
+        "Obie Benson wrote it": ["benson", "four tops"],
+        "Vietnam": ["vietnam"]
+      }
+    },
+    {
+      "title": "Gimme Shelter", "artists": ["The Rolling Stones"], "album": "Let It Bleed", "durationMs": 271000,
+      "wants": {
+        "Merry Clayton": ["clayton"],
+        "the voice cracking": ["crack", "voice broke", "gave out"],
+        "the miscarriage": ["miscarri", "lost the baby", "pregnan"]
+      }
+    },
+    {
+      "title": "Hotel California", "artists": ["Eagles"], "album": "Hotel California", "durationMs": 391000,
+      "wants": {
+        "the satanism myth": ["satan", "church of satan", "lavey"],
+        "the twin guitar duel": ["duel", "felder", "walsh"],
+        "Steely Dan": ["steely dan", "steely knives"]
+      }
+    },
+    {
+      "title": "Bohemian Rhapsody", "artists": ["Queen"], "album": "A Night at the Opera", "durationMs": 354000,
+      "wants": {
+        "no chorus": ["no chorus", "without a chorus", "three songs", "suite"],
+        "the overdubs": ["overdub", "180", "200", "tape wore"],
+        "the video": ["video", "top of the pops", "elstree"]
+      }
+    },
+    {
+      "title": "Born in the U.S.A.", "artists": ["Bruce Springsteen"], "album": "Born in the U.S.A.", "durationMs": 278000,
+      "wants": {
+        "Reagan": ["reagan", "george will", "campaign"],
+        "the misreading": ["misread", "misunderstood", "mistaken", "patriotic", "anthem"],
+        "the Nebraska demo": ["nebraska", "acoustic demo", "solo acoustic"]
+      }
+    },
+    {
+      "title": "Ring of Fire", "artists": ["Johnny Cash"], "album": "Ring of Fire: The Best of Johnny Cash", "durationMs": 156000,
+      "wants": {
+        "June Carter wrote it": ["june carter", "carter"],
+        "Anita recorded it first": ["anita"],
+        "the mariachi horns": ["mariachi", "trumpet", "horns"]
+      }
+    },
+    {
+      "title": "Creep", "artists": ["Radiohead"], "album": "Pablo Honey", "durationMs": 238000,
+      "wants": {
+        "The Air That I Breathe": ["air that i breathe", "hollies", "hammond"],
+        "Greenwood's sabotage": ["greenwood", "dead note", "crunch", "ruin"],
+        "not meant as a single": ["throwaway", "no plans", "one take", "rehears"]
+      }
+    },
+    {
+      "title": "Hey Jude", "artists": ["The Beatles"], "album": "Hey Jude", "durationMs": 431000,
+      "wants": {
+        "written for Julian": ["julian", "hey jules"],
+        "the swear on the tape": ["fucking hell", "expletive", "swear", "2:5", "2:4"],
+        "the shoulder line": ["shoulder", "best line"]
+      }
+    }
+  ]
+}

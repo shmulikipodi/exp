@@ -20,6 +20,7 @@ export function Lineage({
   durationMs,
   progressMs,
   onPlay,
+  onCompare,
   onSeek,
   onAsk,
   busy,
@@ -36,6 +37,7 @@ export function Lineage({
   durationMs: number;
   progressMs: number;
   onPlay: (query: string) => void;
+  onCompare: (r: Related) => void;
   onSeek: (ms: number) => void;
   onAsk: (topic: "artist" | "album") => void;
   busy: string;
@@ -46,6 +48,8 @@ export function Lineage({
   const [allCrew, setAllCrew] = useState(false);
 
   /** A song: its sleeve, whose it is, and what it has to do with the one playing. */
+  const shared = (kind: string) => /(sampl|interpolat|cover|remix)/i.test(kind);
+
   const songs = (heading: string, list: Related[]) =>
     list.length === 0 ? null : (
       <>
@@ -64,6 +68,21 @@ export function Lineage({
                   <span>{r.artist}</span>
                 </span>
                 <span className="tree-note">{r.kind}</span>
+                {shared(r.kind) && (
+                  <span
+                    className="tree-ab"
+                    role="button"
+                    tabIndex={0}
+                    title={t.compareHint}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCompare(r);
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && onCompare(r)}
+                  >
+                    {t.compare}
+                  </span>
+                )}
                 {/* Clicking plays it and the transport grows a way back, so a detour
                     costs you nothing — that is the whole point of the row. */}
                 <span className="tree-go" aria-hidden="true">

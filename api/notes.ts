@@ -324,10 +324,11 @@ export function focusKind(value: unknown): string {
 }
 
 type Body = {
-  mode?: "notes" | "more" | "ask" | "artist" | "album" | "expand";
+  mode?: "notes" | "more" | "ask" | "artist" | "album" | "expand" | "compare";
   have?: { title: string; body: string }[];
   /** With "more": the one kind of note the reader wants three more of. */
   focus?: string;
+  other?: { title: string; artist: string; kind: string };
   rejected?: string[];
   question?: string;
   artist?: string;
@@ -631,6 +632,27 @@ nothing in the evidence carries the claim, return "" for it.
 Return ONLY a JSON object, no markdown fence:
 { "story": "two or three paragraphs, separated by \\n\\n", "passage": "the exact sentences from the evidence, or \"\"", "passageFrom": "Genius | Wikipedia | MusicBrainz | a podcast | the news" }`;
 
+/**
+ * Where, in each of two records, the borrowed part actually is.
+ *
+ * The app can already play both. What it cannot do without asking is say which eight
+ * seconds to play — and "here is the whole of More Than a Feeling" is not hearing what
+ * Cobain took, it is listening to a different song.
+ */
+const COMPARE_SYSTEM = `You are being asked where a borrowed part sits in two recordings.
+
+One record takes something from another — a riff, a break, a vocal line, a chord
+sequence. Give the moment in EACH where that shared thing is clearest, as seconds from
+the start.
+
+- Pick the spot a listener would recognise it: the riff arriving, not the bar before it.
+- Prefer a moment you actually know over the start of the song. If you do not know where
+  it falls in one of them, give null for that one rather than guessing at 0.
+- "confident" is true only when you would stake the answer on it.
+
+Return ONLY a JSON object, no markdown fence:
+{ "hereAt": seconds or null, "thereAt": seconds or null, "what": "four to eight words naming the shared part", "confident": true or false }`;
+
 // This goes at the TOP of the prompt, not the bottom. All the evidence is in English,
 // which pulls hard towards answering in English — a language rule tacked on after four
 // hundred words of instructions gets dropped, especially by the lighter models.
@@ -845,6 +867,34 @@ export default async function handler(req: any, res: any) {
       : "No catalogue or encyclopedia entry was found for this recording. Be correspondingly careful.\n\n";
 
     // A question about the record, or about one note in it.
+    if (body.mode === "compare") {
+      const other = body.other;
+      if (!other?.title) {
+        res.statusCode = 400;
+        return res.end(JSON.stringify({ error: "other record required" }));
+      }
+      const asked =
+        `${facts}\n\n${evidenceBlock}${lyricBlock}` +
+        `The record playing: "${title}" by ${artists.join(", ")}\n` +
+        `The record it borrows from or lends to: "${other.title}" by ${other.artist}\n` +
+        `The relationship: ${other.kind}\n\n` +
+        `Where is the shared part in each?`;
+
+      const found = parseNotes((await ground(COMPARE_SYSTEM, asked, MODEL, userKeys)).text);
+      const secs = (v: unknown) => {
+        const n = Number(v);
+        return Number.isFinite(n) && n >= 0 && n < 3600 ? Math.round(n) : null;
+      };
+      return res.end(
+        JSON.stringify({
+          hereAt: secs(found.hereAt),
+          thereAt: secs(found.thereAt),
+          what: String(found.what ?? "").slice(0, 80),
+          confident: found.confident === true,
+        }),
+      );
+    }
+
     if (body.mode === "expand") {
       const note = body.about;
       if (!note?.title) {

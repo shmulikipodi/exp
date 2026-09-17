@@ -810,44 +810,6 @@ export default function App() {
     scrollToLine(streamRef.current, document.querySelector(`.stream [data-l="${sungNow}"]`));
   }, [sungNow, reading]);
 
-  // The phone's hero: the sleeve owns the first screen, then collapses out of the way.
-  // --c runs 0…1 across roughly one cover-height of scrolling; the CSS reads it.
-  //
-  // This used to also blur every note except the one nearest the middle of the column.
-  // That was right when the column was a stack of notes. Now the words carry the focus
-  // and the notes stand inside them, so two focus systems were fighting over the same
-  // screen and the notes lost — everything but one was faded to almost nothing, which
-  // is why the column looked empty.
-  useEffect(() => {
-    const el = streamRef.current;
-    if (!el) return;
-    let frame = 0;
-
-    const apply = () => {
-      frame = 0;
-      const stage = el.parentElement;
-      if (!stage) return;
-      const over = Math.max(1, window.innerWidth * 0.62);
-      const c = Math.min(1, Math.max(0, el.scrollTop / over));
-      stage.style.setProperty("--c", c.toFixed(3));
-      // The controls sit on the picture, so they leave with it. A calc() on opacity
-      // cannot also switch off pointer events, hence the flag.
-      stage.dataset.collapsed = c > 0.8 ? "1" : "0";
-    };
-
-    const onScroll = () => {
-      if (!frame) frame = requestAnimationFrame(apply);
-    };
-    apply();
-    el.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", apply);
-    return () => {
-      el.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", apply);
-      cancelAnimationFrame(frame);
-    };
-  }, []);
-
   // Notes are no longer a finished document — they can grow, shrink and be questioned.
   // Every change is written straight back to storage, so it survives the track change.
   /** The track an in-flight question belongs to, captured when it is asked. */
@@ -1265,6 +1227,59 @@ export default function App() {
     window.open(spotifySearchUrl(query, "artist"), "_blank", "noreferrer");
   }, []);
 
+
+  /**
+   * Hear the borrowed part in both records, one after the other.
+   *
+   * The app could already play either one; what it could not do was say which eight
+   * seconds. So it asks, seeks this record to the moment the part arrives, gives you a
+   * few seconds of it, then goes to the other and lands on the same thing there. The
+   * way back is the detour you already have.
+   */
+  const compare = useCallback(
+    async (r: { title: string; artist: string; kind: string }) => {
+      if (busy !== "") return;
+      setBusy("compare");
+      setError("");
+      try {
+        const where = await post<{
+          hereAt: number | null;
+          thereAt: number | null;
+          what: string;
+          confident: boolean;
+        }>({ ...subject(), mode: "compare", other: r, keys: liveKeys() });
+
+        setControlNote(t.comparing(where.what || r.title));
+        if (where.hereAt !== null) {
+          const to = where.hereAt * 1000;
+          await run(() => seek(to), () => setProgress(to));
+          await new Promise((done) => setTimeout(done, 9000));
+        }
+        // Remember where we were before leaving, so the back arrow returns exactly.
+        const now = latest.current.playing;
+        if (now?.id) {
+          setDetour({
+            contextUri: now.contextUri ?? "",
+            id: now.id,
+            title: now.title,
+            positionMs: latest.current.progress ?? 0,
+          });
+        }
+        await run(() => playSearch(`${r.artist} ${r.title}`));
+        if (where.thereAt !== null) {
+          // Spotify needs a moment to actually be playing the new track before a seek
+          // means anything.
+          setTimeout(() => run(() => seek(where.thereAt! * 1000)), 2500);
+        }
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setBusy("");
+      }
+    },
+    [busy, subject, run, t],
+  );
+
   const playHere = useCallback(async () => {
     if (player.status !== "ready") return;
     await run(() => transferTo(player.deviceId));
@@ -1421,7 +1436,7 @@ export default function App() {
       {track && (
         <>
           <div className="columns">
-          {marks.includes("tree") && !phone ? (
+          {marks.includes("tree") && !phone && (
             <Lineage
               t={t}
               title={track.title}
@@ -1433,6 +1448,7 @@ export default function App() {
               durationMs={track.durationMs}
               progressMs={progress}
               onPlay={wander}
+              onCompare={compare}
               onSeek={(ms) => run(() => seek(ms), () => setProgress(ms))}
               onAsk={askTopic}
               busy={busy}
@@ -1443,79 +1459,7 @@ export default function App() {
                 (activeNotes?.answers ?? []).find((a) => a.about === "topic:album")?.body
               }
             />
-          ) : phone ? (
-            <section className="sleeve">
-              {track.art && (
-                <img
-                  className="cover"
-                  src={track.art}
-                  alt=""
-                  // Must match the crossOrigin of the palette sampler's request, or the
-                  // browser caches a non-CORS copy and tainting kills colour extraction.
-                  crossOrigin="anonymous"
-                  onError={(e) => (e.currentTarget.style.display = "none")}
-                />
-              )}
-              <h1>{track.title}</h1>
-              <p className="artist">
-                <button
-                  className={`link${busy === "artist" ? " busy" : ""}`}
-                  disabled={!activeNotes || busy !== ""}
-                  onClick={() => askTopic("artist")}
-                >
-                  {track.artists.join(", ")}
-                </button>
-              </p>
-              <p className="album">
-                <button
-                  className={`link${busy === "album" ? " busy" : ""}`}
-                  disabled={!activeNotes || busy !== ""}
-                  onClick={() => askTopic("album")}
-                >
-                  {track.album}
-                </button>
-                {track.released && <span> · {track.released.slice(0, 4)}</span>}
-              </p>
-
-
-
-
-              {!viewing && upNext && (
-                <p className="up-next">
-                  <b>{t.upNext}</b> {upNext.label}
-                  {upNext.headline && <span>{upNext.headline}</span>}
-                </p>
-              )}
-
-              {PLAYER_ENABLED && !viewing && player.status !== "off" && (
-                <p className="player-line">
-                  {player.status === "loading" && t.playerStarting}
-                  {player.status === "ready" && (
-                    <button className="link" onClick={playHere}>
-                      {t.playHere}
-                    </button>
-                  )}
-                  {player.status === "unsupported" &&
-                    (player.reason === "premium"
-                      ? t.playerPremium
-                      : player.reason === "reconnect"
-                        ? t.playerReconnect
-                        : player.reason)}
-                </p>
-              )}
-
-              {controlNote && (
-                <p className="control-note">
-                  {controlNote}
-                  {controlNote === t.reconnect && (
-                    <button className="ghost" onClick={login}>
-                      Spotify →
-                    </button>
-                  )}
-                </p>
-              )}
-            </section>
-          ) : null}
+          )}
 
           {(controlNote || (PLAYER_ENABLED && !viewing && player.status !== "off")) && (
             <div className="column-foot">
@@ -1613,6 +1557,12 @@ export default function App() {
                     designed block in the sleeve's own colour, rather than three grey
                     paragraphs stacked in the order they came out of the JSON. */}
                 <header className="plate">
+                  {/* Only on the phone, where there is no column beside this one to
+                      hold it. The desktop dropped the cover on purpose: it is already
+                      in the bar along the bottom. */}
+                  {track.art && (
+                    <img className="plate-art" src={track.art} alt="" crossOrigin="anonymous" />
+                  )}
                   <p className="plate-kicker">
                     {track.artists.join(", ")}
                     {track.album && <span> · {track.album}</span>}
