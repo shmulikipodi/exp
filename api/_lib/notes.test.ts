@@ -167,3 +167,28 @@ describe("parseNotes, when the model breaks its own JSON", () => {
     expect(() => parseNotes("I am afraid I cannot do that")).toThrow(/JSON/);
   });
 });
+
+describe("repairJson at a key position only", () => {
+  it("quotes a key the model left bare", () => {
+    expect(parseNotes('{headline: "a", confidence: "high"}').headline).toBe("a");
+  });
+
+  it("turns a single-quoted key into a real one", () => {
+    expect(parseNotes("{'headline': \"a\"}").headline).toBe("a");
+  });
+
+  it("leaves an apostrophe in the prose completely alone", () => {
+    // The repair only fires after { or , and before :, so a possessive inside a
+    // sentence cannot be mistaken for a key.
+    const out = parseNotes('{"body":"Cobain\'s riff, and Novoselic\'s bass: both of them"}');
+    expect(out.body).toBe("Cobain's riff, and Novoselic's bass: both of them");
+  });
+
+  it("does not touch a colon inside a value", () => {
+    expect(parseNotes('{"body":"He said: yes, always"}').body).toBe("He said: yes, always");
+  });
+
+  it("survives a doubled comma", () => {
+    expect(parseNotes('{"a":"1",,"b":"2"}').b).toBe("2");
+  });
+});

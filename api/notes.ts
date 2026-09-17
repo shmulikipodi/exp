@@ -588,12 +588,20 @@ export function repairJson(text: string): string {
   }
   out = fixed;
 
-  return out
-    // // and /* */ are not JSON, and turn up in front of a field often enough to matter.
-    .replace(/^\s*\/\/.*$/gm, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    // A comma before the brace that closes the thing it was separating.
-    .replace(/,(\s*[}\]])/g, "$1");
+  return (
+    out
+      // // and /* */ are not JSON, and turn up in front of a field often enough to matter.
+      .replace(/^\s*\/\/.*$/gm, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      // A comma before the brace that closes the thing it was separating.
+      .replace(/,(\s*[}\]])/g, "$1")
+      // Two commas where one was meant.
+      .replace(/,(\s*),/g, ",")
+      // A key in single quotes, or in none at all. Only ever at a key position — after
+      // a { or a , and before a : — so prose containing an apostrophe is untouched.
+      .replace(/([{,]\s*)'([^'\n]{1,60})'(\s*:)/g, '$1"$2"$3')
+      .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]{0,40})(\s*:)/g, '$1"$2"$3')
+  );
 }
 
 export function parseNotes(text: string): any {
@@ -614,7 +622,14 @@ export function parseNotes(text: string): any {
     const start = candidate.indexOf("{");
     const end = candidate.lastIndexOf("}");
     if (start === -1 || end <= start) throw new Error("Model did not return JSON");
-    return attempt(candidate.slice(start, end + 1));
+    try {
+      return attempt(candidate.slice(start, end + 1));
+    } catch (err) {
+      // Carry a piece of what it actually said. Guessing at the shape of a malformation
+      // you cannot see is how the last two repairs were written.
+      const near = candidate.slice(Math.max(0, start), start + 400).replace(/\s+/g, " ");
+      throw new Error(`Model did not return JSON (${(err as Error).message}) near: ${near}`);
+    }
   }
 }
 
