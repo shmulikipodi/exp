@@ -221,9 +221,10 @@ export default function App() {
   const [showKeys, setShowKeys] = useState(false);
   const [reload, setReload] = useState(0);
   const [keyCount, setKeyCount] = useState(liveKeys().length);
-  const [depth, setDepth] = useState<Depth>(
-    () => (localStorage.getItem("ln.depth") as Depth) ?? "normal",
-  );
+  // Depth moved from the song to the fact: every note opens into its whole story, so a
+  // dial that rewrote all of them at a different length stopped earning its place in
+  // the row. The API still takes it; nothing sets it but this.
+  const depth: Depth = "normal";
   // The phone keeps the sleeve: there are no columns there, the artwork is the whole
   // first screen and it collapses into a bar as you scroll. Only the desktop's first
   // column was a picture you could already see somewhere else.
@@ -1711,13 +1712,20 @@ export default function App() {
                   // was computed and then thrown away at render time, so everything
                   // arrived the same size.
                   const lead = i === 0;
+                  // Lit while the record is actually in the few seconds this note is
+                  // about. The timing was computed for the dots on the bar and never
+                  // used for the note itself.
+                  const nowHere =
+                    n.at !== null &&
+                    track.durationMs > 0 &&
+                    Math.abs(n.at * track.durationMs - progress) < 6000;
                   const picture = pictureFor(tree, n);
                   return (
                   <article
                     key={`${n.title}-${i}`}
                     className={`note${lead ? " lead" : ""}${picture ? " withart" : ""}${
                       opened === n.title ? " open" : ""
-                    }`}
+                    }${nowHere ? " here" : ""}`}
                     // Tapping a note opens it. It used to jump the track, which is a
                     // surprising thing for a paragraph of text to do — the timestamp
                     // beside it is the thing that moves the record, and always was.
@@ -1945,26 +1953,6 @@ export default function App() {
                           ? t.moreOf(t.kinds[onlyKind] ?? onlyKind)
                           : t.moreNotes}
                     </button>
-                    <div className="depth" role="group" title={t.depthHint}>
-                      {(["brief", "normal", "deep"] as Depth[]).map((d) => (
-                        <button
-                          key={d}
-                          className={depth === d ? "on" : ""}
-                          onClick={() => {
-                            if (d === depth) return;
-                            setDepth(d);
-                            localStorage.setItem("ln.depth", d);
-                            // The notes were written to a different measure, so they
-                            // are worth writing again.
-                            cache.current.clear();
-                            fetchedFor.current = "";
-                            setReload((r) => r + 1);
-                          }}
-                        >
-                          {t.depths[d]}
-                        </button>
-                      ))}
-                    </div>
                   </div>
                   {/* The questions this record invites, written by the same pass that
                       wrote the notes — so they are about this song and not about songs.

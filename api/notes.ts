@@ -257,6 +257,13 @@ Return ONLY a JSON object, no markdown fence:
   "confidence": "high" | "low"
 }`;
 
+/** Who the artist is and what the album is, kept by subject rather than by track. */
+const sideCache = new Map<
+  string,
+  { at: number; answer: string; sources: [string, string][] }
+>();
+const SIDE_TTL_MS = 12 * 60 * 60_000;
+
 const DEPTHS = ["brief", "normal", "deep"];
 
 /** Where a note came from. "memory" is the one the reader most needs to see. */
@@ -730,6 +737,19 @@ export default async function handler(req: any, res: any) {
     if (body.mode === "artist" || body.mode === "album") {
       const isArtist = body.mode === "artist";
       const who = (body.artist ?? artists[0]).trim();
+
+      // Kept per artist and per album, not per track. Listening through a record asked
+      // for the same description of that record on every song and paid for it each
+      // time — the one piece of writing in this app that is definitionally the same for
+      // twelve tracks in a row.
+      const shelf = `${body.mode}|${readerLang}|${who}|${isArtist ? "" : (body.album ?? "")}`
+        .toLowerCase();
+      const known = sideCache.get(shelf);
+      if (known && Date.now() - known.at < SIDE_TTL_MS) {
+        res.setHeader("x-exp-cache", "hit");
+        return res.end(JSON.stringify({ answer: known.answer, sources: known.sources }));
+      }
+
       const subject = await (isArtist ? gatherArtist(who, readerLang) : gatherAlbum(body.album ?? "", who, readerLang));
 
       const base = isArtist ? ARTIST_SYSTEM : ALBUM_SYSTEM;
@@ -757,10 +777,14 @@ export default async function handler(req: any, res: any) {
         answerText = parseAnswer(out.text);
       }
 
+      const sources = [...subject.sources, ...out.urls].slice(0, 6);
+      sideCache.set(shelf, { at: Date.now(), answer: answerText, sources });
+      if (sideCache.size > 80) sideCache.delete(sideCache.keys().next().value as string);
+
       return res.end(
         JSON.stringify({
           answer: answerText,
-          sources: [...subject.sources, ...out.urls].slice(0, 6),
+          sources,
         }),
       );
     }

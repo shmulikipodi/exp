@@ -1091,6 +1091,27 @@ body.dragging { cursor: col-resize; user-select: none; }
 .note:hover h3 { color: var(--accent); }
 .note.open { padding-bottom: 3vh; }
 
+/* The record has reached the moment this note is about. A note that says "listen for
+   the crack at 3:02" should say so while it is happening. */
+.note.here { position: relative; }
+.note.here::before {
+  content: "";
+  position: absolute;
+  inset-block: -6px;
+  inset-inline-start: -18px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: lit 2.4s ease-in-out infinite;
+}
+@keyframes lit {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .note.here::before { animation: none; opacity: 0.8; }
+}
+
 /* The whole story behind a note, once it is asked for. Set narrower than the note it
    belongs to, so an open note reads as a thing inside a thing rather than as the
    column suddenly changing its mind about margins. */
