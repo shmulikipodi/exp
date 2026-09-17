@@ -1,48 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import type { Strings } from "./i18n";
 import { shape, type LyricLine } from "./notes-logic";
-
-type Related = { kind: string; title: string; artist: string; art: string };
-type Person = { name: string; role: string; image: string };
-type Cover = { artist: string; title: string; year: string; live: boolean; instrumental: boolean };
-
-type Tree = {
-  found: boolean;
-  title: string;
-  artist: string;
-  year: string;
-  label: string;
-  about: string;
-  people: Person[];
-  original: Related[];
-  uses: Related[];
-  usedBy: Related[];
-  coveredBy: Related[];
-  versions: Related[];
-  covers: Cover[];
-  coverCount: number;
-  source: string;
-};
-
-const NOTHING: Tree = {
-  found: false,
-  title: "",
-  artist: "",
-  year: "",
-  label: "",
-  about: "",
-  people: [],
-  original: [],
-  uses: [],
-  usedBy: [],
-  coveredBy: [],
-  versions: [],
-  covers: [],
-  coverCount: 0,
-  source: "",
-};
-
-const SHOWN = 6;
+import type { Related, Tree } from "./useTree";
 
 /**
  * Where the song came from and what came out of it, sorted into the questions someone
@@ -56,7 +15,7 @@ export function Lineage({
   artist,
   album,
   released,
-  isrc,
+  tree,
   lines,
   durationMs,
   progressMs,
@@ -72,7 +31,7 @@ export function Lineage({
   artist: string;
   album: string;
   released?: string;
-  isrc?: string;
+  tree: Tree | null;
   lines: LyricLine[] | null;
   durationMs: number;
   progressMs: number;
@@ -83,23 +42,8 @@ export function Lineage({
   artistText?: string;
   albumText?: string;
 }) {
-  const [tree, setTree] = useState<Tree | null>(null);
   const [all, setAll] = useState(false);
-
-  useEffect(() => {
-    setTree(null);
-    setAll(false);
-    let alive = true;
-    const params = new URLSearchParams({ title, artist });
-    if (isrc) params.set("isrc", isrc);
-    fetch(`/api/lineage?${params}`)
-      .then((r) => r.json())
-      .then((d) => alive && setTree(d))
-      .catch(() => alive && setTree(NOTHING));
-    return () => {
-      alive = false;
-    };
-  }, [title, artist, isrc]);
+  const [allCrew, setAllCrew] = useState(false);
 
   /** A song: its sleeve, whose it is, and what it has to do with the one playing. */
   const songs = (heading: string, list: Related[]) =>
@@ -139,8 +83,17 @@ export function Lineage({
   const built = shape(lines ?? [], durationMs);
   const here = progressMs / 1000;
 
+  // Who made it, and who else was in the building. A name that wrote, produced, sang
+  // or played is the answer to "who made this"; the rest are credits.
+  const MAIN = /(writ|compos|lyric|produc|arrang|vocal|guitar|bass|drum|keyboard|piano|sax|violin|cell|string|horn|perform|feature)/i;
+  const everyone = tree?.people ?? [];
+  const people = everyone.filter((p) => MAIN.test(p.role));
+  const crew = everyone.filter((p) => !MAIN.test(p.role));
+
   const covers = tree?.covers ?? [];
-  const listed = all ? covers : covers.slice(0, SHOWN);
+  // Two or three worth looking at, then a number. Forty rows of equal weight is a
+  // contact sheet, and the one people actually know is lost in it.
+  const listed = all ? covers : covers.slice(0, 3);
 
   return (
     <section className="lineage">
@@ -212,11 +165,11 @@ export function Lineage({
         </>
       )}
 
-      {(tree?.people?.length ?? 0) > 0 && (
+      {people.length > 0 && (
         <>
           <p className="tree-head">{t.treeMakers}</p>
           <ul className="tree people">
-            {tree!.people.map((p, i) => (
+            {people.map((p, i) => (
               <li key={`${p.name}-${i}`}>
                 <span className="row">
                   {p.image ? (
@@ -232,6 +185,30 @@ export function Lineage({
               </li>
             ))}
           </ul>
+          {/* The assistant engineer and the video producer were arriving with the same
+              face, the same row and the same weight as the man who wrote it. They are
+              worth keeping and not worth equal billing. */}
+          {crew.length > 0 && (
+            <>
+              {allCrew && (
+                <ul className="tree crew">
+                  {crew.map((p, i) => (
+                    <li key={`${p.name}-${i}`}>
+                      <span className="row">
+                        <span className="tree-text">
+                          <b>{p.name}</b>
+                          <span>{p.role}</span>
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button className="link tree-more" onClick={() => setAllCrew((v) => !v)}>
+                {allCrew ? t.treeFewer : t.treeCrew(crew.length)}
+              </button>
+            </>
+          )}
         </>
       )}
 
@@ -246,12 +223,13 @@ export function Lineage({
             {t.treeCovers}
             <span>{tree?.coverCount ?? covers.length}</span>
           </p>
-          <ul className="tree plain">
+          <ul className={`tree${all ? " plain" : ""}`}>
             {listed.map((c, i) => (
               <li key={`c${i}`}>
                 <button title={t.treePlay} onClick={() => onPlay(`${c.artist} ${c.title}`)}>
                   <span className="tree-text">
                     <b>{c.artist}</b>
+                    {!all && <span>{c.title}</span>}
                   </span>
                   <span className="tree-note">
                     {[c.year, c.live ? t.treeLive : "", c.instrumental ? t.treeInstrumental : ""]
@@ -262,7 +240,7 @@ export function Lineage({
               </li>
             ))}
           </ul>
-          {covers.length > SHOWN && (
+          {covers.length > 3 && (
             <button className="link tree-more" onClick={() => setAll((v) => !v)}>
               {all ? t.treeFewer : t.treeAll(covers.length)}
             </button>

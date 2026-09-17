@@ -34,6 +34,7 @@ import { Wash } from "./Wash";
 import { MARKS, MARK_ORDER, type Mark } from "./RailIcons";
 import { Lineage } from "./Lineage";
 import { useLyrics, useTranslation } from "./useLyrics";
+import { pictureFor, useTree } from "./useTree";
 import { Words } from "./Words";
 import { isReading, scrollToLine, useReading } from "./LyricLines";
 import { Settings } from "./Settings";
@@ -249,7 +250,6 @@ export default function App() {
   const [railW, setRailW] = useState(() => localStorage.getItem("ln.railW") ?? "");
   // Temporary: four candidate type sets, switchable so they can be seen rather than
   // described. Once one is chosen the rest come out.
-  const [typeSet, setTypeSet] = useState(() => localStorage.getItem("ln.type") ?? "a");
   const [historyCount, setHistoryCount] = useState(0);
   const [viewing, setViewing] = useState<{ entry: Entry; notes: Notes } | null>(null);
   const [busy, setBusy] = useState("");
@@ -362,10 +362,6 @@ export default function App() {
     setMarks((open) => (open.includes(m) ? open.filter((x) => x !== m) : [...open, m]));
   }, []);
 
-  useEffect(() => {
-    document.documentElement.dataset.type = typeSet;
-    localStorage.setItem("ln.type", typeSet);
-  }, [typeSet]);
 
   useEffect(() => {
     document.documentElement.dir = t.dir;
@@ -749,6 +745,11 @@ export default function App() {
   // The words, and every note standing against the line it is about. This is the whole
   // idea of the column: the explanation is not in a list somewhere else, it is where
   // the thing it explains is.
+  const tree = useTree(
+    playing?.title ?? "",
+    playing?.artists?.[0] ?? "",
+    playing?.isrc,
+  );
   const lyrics = useLyrics(
     playing?.title ?? "",
     playing?.artists?.[0] ?? "",
@@ -1214,8 +1215,6 @@ export default function App() {
           t={t}
           onClose={() => setShowSettings(false)}
           toggleLang={toggleLang}
-          typeSet={typeSet}
-          setTypeSet={setTypeSet}
           zoom={zoom}
           setZoom={setZoom}
           openKeys={() => {
@@ -1348,7 +1347,7 @@ export default function App() {
               artist={track.artists[0] ?? ""}
               album={track.album}
               released={track.released}
-              isrc={track.isrc}
+              tree={tree}
               lines={lyrics}
               durationMs={track.durationMs}
               progressMs={progress}
@@ -1529,28 +1528,39 @@ export default function App() {
                   </div>
                 )}
 
-                {activeNotes.headline && (
-                  <p className="headline">
-                    <Linked
-                      text={activeNotes.headline}
-                      links={activeNotes.links}
-                      onPlay={playNamed}
-                      onOpenArtist={openArtist}
-                      t={t}
-                    />
+                {/* The opening plate. Title, what the record is, what it is about — one
+                    designed block in the sleeve's own colour, rather than three grey
+                    paragraphs stacked in the order they came out of the JSON. */}
+                <header className="plate">
+                  <p className="plate-kicker">
+                    {track.artists.join(", ")}
+                    {track.album && <span> · {track.album}</span>}
+                    {track.released && <span> · {track.released.slice(0, 4)}</span>}
                   </p>
-                )}
-                {activeNotes.meaning && (
-                  <p className="meaning">
-                    <Linked
-                      text={activeNotes.meaning}
-                      links={activeNotes.links}
-                      onPlay={playNamed}
-                      onOpenArtist={openArtist}
-                      t={t}
-                    />
-                  </p>
-                )}
+                  <h1 className="plate-title">{track.title}</h1>
+                  {activeNotes.headline && (
+                    <p className="plate-line">
+                      <Linked
+                        text={activeNotes.headline}
+                        links={activeNotes.links}
+                        onPlay={playNamed}
+                        onOpenArtist={openArtist}
+                        t={t}
+                      />
+                    </p>
+                  )}
+                  {activeNotes.meaning && (
+                    <p className="plate-meaning">
+                      <Linked
+                        text={activeNotes.meaning}
+                        links={activeNotes.links}
+                        onPlay={playNamed}
+                        onOpenArtist={openArtist}
+                        t={t}
+                      />
+                    </p>
+                  )}
+                </header>
                 {activeNotes.thread && (
                   <p className="thread">
                     <b>{t.thread}</b> {activeNotes.thread}
@@ -1604,6 +1614,11 @@ export default function App() {
 
                   const n = item.note;
                   const i = item.index;
+                  // The first note is the thing the record is known for — the ranking
+                  // was computed and then thrown away at render time, so everything
+                  // arrived the same size.
+                  const lead = i === 0;
+                  const picture = pictureFor(tree, n);
                   // Only a note that names a moment is a place you can go. A note with
                   // no moment schedules at 0, which is "available from the start" — not
                   // "the song starts here".
@@ -1613,7 +1628,7 @@ export default function App() {
                   return (
                   <article
                     key={`${n.title}-${i}`}
-                    className={`note${seekable ? " seekable" : ""}`}
+                    className={`note${lead ? " lead" : ""}${picture ? " withart" : ""}${seekable ? " seekable" : ""}`}
                     onClick={(e) => {
                       // The buttons inside a note do their own thing.
                       if ((e.target as HTMLElement).closest("button, a, input, form")) return;
@@ -1622,6 +1637,15 @@ export default function App() {
                       run(() => seek(to), () => setProgress(to));
                     }}
                   >
+                    {picture && (
+                      <img
+                        className={`note-art${picture.round ? " round" : ""}`}
+                        src={picture.src}
+                        alt=""
+                        title={picture.alt}
+                        loading="lazy"
+                      />
+                    )}
                     <span className={`kind ${n.kind}`}>{t.kinds[n.kind] ?? n.kind}</span>
                     {n.at !== null && canControl !== false && !viewing && track.durationMs > 0 && (
                       <button

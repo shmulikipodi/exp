@@ -5,7 +5,39 @@ import type { Strings } from "./i18n";
 
 const LINK = /\[\[(?:(artist|song):)?([^\]|]{2,60})(?:\|[^\]]{2,80})?\]\]/g;
 
+/**
+ * Somebody's actual words, long enough to be worth hearing in their own voice.
+ *
+ * The notes are now written to quote people rather than report them, and a good quote
+ * buried mid-paragraph in the same grey as everything around it is a quote wasted. Any
+ * of the marks a model reaches for, straight or curly.
+ */
+const QUOTE = /["\u201c\u2018\u00ab]([^"\u201d\u2019\u00bb]{28,220})["\u201d\u2019\u00bb]/g;
+
 type Part = string | { term: string; href: string; kind?: "artist" | "song" };
+
+/** Wrap quoted runs so they can be set apart, leaving everything else untouched. */
+function spoken(text: string, key: string) {
+  if (!QUOTE.test(text)) return text;
+  QUOTE.lastIndex = 0;
+  const out: (string | { said: string })[] = [];
+  let last = 0;
+  for (const m of text.matchAll(QUOTE)) {
+    if (m.index! > last) out.push(text.slice(last, m.index));
+    out.push({ said: m[0] });
+    last = m.index! + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out.map((bit, i) =>
+    typeof bit === "string" ? (
+      bit
+    ) : (
+      <span className="said" key={`${key}-${i}`}>
+        {bit.said}
+      </span>
+    ),
+  );
+}
 
 export function Linked({
   text,
@@ -20,7 +52,7 @@ export function Linked({
   onOpenArtist?: (query: string) => void;
   t?: Strings;
 }) {
-  if (!text.includes("[[")) return <>{text}</>;
+  if (!text.includes("[[")) return <>{spoken(text, "q")}</>;
 
   const parts: Part[] = [];
   let last = 0;
@@ -41,7 +73,7 @@ export function Linked({
     <>
       {parts.map((part, i) =>
         typeof part === "string" ? (
-          part
+          spoken(part, `q${i}`)
         ) : (
           <span key={i} className="entity-wrap">
             <a

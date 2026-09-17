@@ -9,8 +9,6 @@ export function Settings({
   t,
   onClose,
   toggleLang,
-  typeSet,
-  setTypeSet,
   zoom,
   setZoom,
   openKeys,
@@ -21,8 +19,6 @@ export function Settings({
   t: Strings;
   onClose: () => void;
   toggleLang: () => void;
-  typeSet: string;
-  setTypeSet: (v: string) => void;
   zoom: number;
   setZoom: (v: number) => void;
   openKeys: () => void;
@@ -30,12 +26,6 @@ export function Settings({
   historyCount: number;
   keyCount: number;
 }) {
-  const faces: [string, string][] = [
-    ["a", "Bevan"],
-    ["b", "Playfair"],
-    ["c", "Archivo"],
-    ["d", "Bricolage"],
-  ];
   return (
     <div className="sheet" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="panel settings" onClick={(e) => e.stopPropagation()}>
@@ -47,15 +37,6 @@ export function Settings({
           <span className="zoom-now">{Math.round(zoom * 100)}%</span>
           <button onClick={() => setZoom(Math.min(1.6, Math.round((zoom + 0.1) * 10) / 10))}>+</button>
           {zoom !== 1 && <button onClick={() => setZoom(1)}>{t.settingsReset}</button>}
-        </div>
-
-        <p className="rail-section">{t.settingsType}</p>
-        <div className="chips">
-          {faces.map(([id, name]) => (
-            <button key={id} className={typeSet === id ? "on" : ""} onClick={() => setTypeSet(id)}>
-              {name}
-            </button>
-          ))}
         </div>
 
         <p className="rail-section">{t.settingsMore}</p>
