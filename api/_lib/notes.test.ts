@@ -135,3 +135,35 @@ razor-splicing 33 separate edit pieces from the best takes.`;
     expect(inEvidence("", evidence)).toBe(false);
   });
 });
+
+describe("parseNotes, when the model breaks its own JSON", () => {
+  it("survives a trailing comma before the closing brace", () => {
+    // Three records in the eval panel failed on exactly this, and the notes behind them
+    // were perfectly good.
+    expect(parseNotes('{"headline":"a","confidence":"high",}').headline).toBe("a");
+    expect(parseNotes('{"notes":[{"title":"a"},]}').notes).toHaveLength(1);
+  });
+
+  it("survives a raw newline inside a string", () => {
+    const out = parseNotes('{"story":"first line\nsecond line"}');
+    expect(out.story).toContain("first line");
+    expect(out.story).toContain("second line");
+  });
+
+  it("survives a comment the model left in", () => {
+    expect(parseNotes('{\n// the headline\n"headline":"a"\n}').headline).toBe("a");
+  });
+
+  it("still reads perfectly good JSON without touching it", () => {
+    const good = '{"headline":"a, b","notes":[{"body":"with, commas"}]}';
+    expect(parseNotes(good).notes[0].body).toBe("with, commas");
+  });
+
+  it("does not eat a comma that belongs to the prose", () => {
+    expect(parseNotes('{"body":"one, two, three"}').body).toBe("one, two, three");
+  });
+
+  it("still refuses something that is not JSON at all", () => {
+    expect(() => parseNotes("I am afraid I cannot do that")).toThrow(/JSON/);
+  });
+});

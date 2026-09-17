@@ -553,16 +553,68 @@ async function resolveLinks(texts: string[], lang = "en"): Promise<Record<string
 }
 
 /** Models fence JSON even when told not to. Dig the object out. */
+/**
+ * Repair the small ways a model breaks JSON, then parse.
+ *
+ * Three of ten records in the eval came back unparseable the moment the evidence got
+ * bigger — a trailing comma before a closing brace, a literal newline inside a string,
+ * a stray comment. The notes behind them were fine; the reader got an error page
+ * because of a comma. None of this guesses at content: it only removes things JSON
+ * does not allow and no model meant to write.
+ */
+export function repairJson(text: string): string {
+  let out = text;
+  // A raw newline inside a string literal is invalid; models write them in long prose.
+  let inString = false;
+  let escaped = false;
+  let fixed = "";
+  for (const ch of out) {
+    if (escaped) {
+      fixed += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      fixed += ch;
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') inString = !inString;
+    if (inString && (ch === "\n" || ch === "\r")) {
+      fixed += "\\n";
+      continue;
+    }
+    fixed += ch;
+  }
+  out = fixed;
+
+  return out
+    // // and /* */ are not JSON, and turn up in front of a field often enough to matter.
+    .replace(/^\s*\/\/.*$/gm, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    // A comma before the brace that closes the thing it was separating.
+    .replace(/,(\s*[}\]])/g, "$1");
+}
+
 export function parseNotes(text: string): any {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const candidate = (fenced ? fenced[1] : text).trim();
+
+  const attempt = (raw: string) => {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return JSON.parse(repairJson(raw));
+    }
+  };
+
   try {
-    return JSON.parse(candidate);
+    return attempt(candidate);
   } catch {
     const start = candidate.indexOf("{");
     const end = candidate.lastIndexOf("}");
     if (start === -1 || end <= start) throw new Error("Model did not return JSON");
-    return JSON.parse(candidate.slice(start, end + 1));
+    return attempt(candidate.slice(start, end + 1));
   }
 }
 
