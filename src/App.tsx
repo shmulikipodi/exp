@@ -1026,10 +1026,6 @@ export default function App() {
           },
           target,
         );
-        requestAnimationFrame(() => {
-          const el = streamRef.current;
-          el?.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-        });
       } catch (e) {
         setError((e as Error).message);
       } finally {
@@ -1082,7 +1078,7 @@ export default function App() {
   );
 
   const ask = useCallback(
-    async (question: string, about: Note | null) => {
+    async (question: string, about: Note | null, reveal = false) => {
       const target = targetOf();
       if (!current || !target || !question.trim()) return;
       const tag = about ? about.title : "general";
@@ -1114,11 +1110,14 @@ export default function App() {
         );
         setDraftQ("");
         setAskingAbout(null);
-        if (!about) {
-          // Answers about the record collect at the end — take the reader to it.
+        // Only when the reader typed the question themselves, and only as far as the
+        // answer. Double-clicking a lyric to ask what it means also lands an answer
+        // down there, and being thrown to the foot of the column is not what somebody
+        // reading a particular line was after.
+        if (reveal) {
           requestAnimationFrame(() => {
-            const el = streamRef.current;
-            el?.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+            const last = streamRef.current?.querySelectorAll(".answer.standalone");
+            last?.[last.length - 1]?.scrollIntoView({ behavior: "smooth", block: "center" });
           });
         }
       } catch (e) {
@@ -1599,7 +1598,12 @@ export default function App() {
                         {track.album && <span> · {track.album}</span>}
                         {track.released && <span> · {track.released.slice(0, 4)}</span>}
                       </p>
-                      <h1 className="plate-title">{track.title}</h1>
+                      <h1
+                        className="plate-title"
+                        style={{ "--len": track.title.length } as React.CSSProperties}
+                      >
+                        {track.title}
+                      </h1>
                     </div>
                   </div>
                   {activeNotes.headline && (
@@ -1901,7 +1905,7 @@ export default function App() {
                 })}
 
                 {(activeNotes.answers ?? [])
-                  .filter((a) => a.about === null || String(a.about).startsWith("topic:"))
+                  .filter((a) => a.about === null)
                   .map((a) => (
                     <div className={`answer standalone${String(a.about).startsWith("topic:") ? " topic" : ""}`} key={a.id}>
                       <p className="q">{a.question}</p>
@@ -1957,7 +1961,7 @@ export default function App() {
                           onClick={() => {
                             setAskingAbout(null);
                             setDraftQ(q);
-                            ask(q, null);
+                            ask(q, null, true);
                           }}
                         >
                           {q}
@@ -1970,7 +1974,7 @@ export default function App() {
                     className="ask"
                     onSubmit={(e) => {
                       e.preventDefault();
-                      ask(draftQ, null);
+                      ask(draftQ, null, true);
                       setAskingAbout(null);
                     }}
                   >
@@ -2038,7 +2042,12 @@ export default function App() {
             <div className="pb-track">
               {track.art && <img src={track.art} alt="" crossOrigin="anonymous" />}
               <span>
-                <b title={track.title}>{track.title}</b>
+                <b
+                  title={track.title}
+                  style={{ "--len": track.title.length } as React.CSSProperties}
+                >
+                  {track.title}
+                </b>
                 <span title={track.artists.join(", ")}>{track.artists.join(", ")}</span>
               </span>
             </div>

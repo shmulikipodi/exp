@@ -83,7 +83,7 @@
 
 .pb-track { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .pb-track img { width: 46px; height: 46px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
-.pb-track > span { min-width: 0; }
+.pb-track > span { flex: 1; min-width: 0; container-type: inline-size; }
 .pb-track b {
   /* Two lines before it gives up, rather than one. A remaster, a live date or a
      "feat." pushes a great many titles past a single line, and cutting the end off a
@@ -96,7 +96,7 @@
      bold — a quarter wider than intended, which is why a title with "- Remastered" on
      the end of it ran out of room. */
   font-weight: 500;
-  font-size: 13px;
+  font-size: clamp(11px, calc(100cqw / var(--len, 18) / 0.52), 13px);
   line-height: 1.3;
   overflow: hidden;
   overflow-wrap: anywhere;
@@ -159,11 +159,14 @@
   .pb-panels { display: flex; }
 }
 .pb-next {
-  font: 11px var(--mono);
+  font: 11px/1.35 var(--mono);
   color: var(--faint);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-align: end;
 }
 
 .stage .idle { margin: auto; text-align: center; }
@@ -338,11 +341,13 @@ button.ghost:hover { color: var(--dim); background: none; }
 
 .tree-text { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
 .tree-text b {
-  font: 500 14px var(--sans);
+  font: 500 14px/1.32 var(--sans);
   color: var(--ink);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .tree-text > span {
   font: 12px var(--sans);
@@ -1287,7 +1292,10 @@ body.dragging { cursor: col-resize; user-select: none; }
   object-fit: cover;
   box-shadow: 0 16px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(243,237,227,0.09);
 }
-.plate-names { min-width: 0; }
+/* flex: 1, not auto. Asking an element to be a size container means its own width may
+   not be worked out from its contents — so as a plain flex item it resolved to nothing
+   at all, and the title inside it wrapped one letter per line. */
+.plate-names { flex: 1; min-width: 0; container-type: inline-size; }
 .plate-kicker {
   margin: 0 0 8px;
   font: 600 10px var(--mono);
@@ -1298,7 +1306,14 @@ body.dragging { cursor: col-resize; user-select: none; }
 .plate-kicker span { color: var(--faint); }
 .plate-title {
   margin: 0;
-  font: var(--display-weight) clamp(28px, 3vw, 46px)/1.02 var(--display);
+  /* Sized from the name itself. A title is between one word and a sentence, and one
+     size cannot serve both: "Thriller" wants to be large and "Everything In Its Right
+     Place - Remastered 2016" wants to fit. --len is the character count; 0.56 is about
+     what an average glyph costs in this face. */
+  font-family: var(--display);
+  font-weight: var(--display-weight);
+  font-size: clamp(21px, min(3vw, calc(100cqw / var(--len, 18) / 0.56)), 46px);
+  line-height: 1.04;
   letter-spacing: -0.025em;
   color: var(--ink);
   text-wrap: balance;
