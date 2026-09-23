@@ -394,11 +394,11 @@ export default function App() {
 
   // Poll Spotify for truth; tick locally in between so the bar moves smoothly.
   // The loop reschedules itself, so the cadence can change without restarting it.
-  const latest = useRef({ playing, progress });
+  const latest = useRef({ playing, progress, sungNow: -1 });
   // Written after render, not during it: mutating a ref mid-render is not safe under
   // concurrent rendering, and oxlint has been saying so.
   useEffect(() => {
-    latest.current = { playing, progress };
+    latest.current = { playing, progress, sungNow };
   });
 
   // What the reader is actually looking at, for work that finishes later.
@@ -804,11 +804,20 @@ export default function App() {
     [openLine, readings, busy, t],
   );
 
-  const reading = useReading();
+  /** Put the line being sung back where it belongs, wherever the column has got to. */
+  const centreOnSung = useCallback(() => {
+    const line = latest.current.sungNow;
+    if (line < 0) return;
+    scrollToLine(streamRef.current, document.querySelector(`.stream [data-l="${line}"]`));
+  }, []);
+
+  // Hands off while the reader is moving the column, and back to the current line a
+  // few seconds after they stop.
+  const reading = useReading(centreOnSung);
   useEffect(() => {
     if (sungNow < 0 || isReading(reading)) return;
-    scrollToLine(streamRef.current, document.querySelector(`.stream [data-l="${sungNow}"]`));
-  }, [sungNow, reading]);
+    centreOnSung();
+  }, [sungNow, reading, centreOnSung]);
 
   // Notes are no longer a finished document — they can grow, shrink and be questioned.
   // Every change is written straight back to storage, so it survives the track change.
@@ -1669,7 +1678,7 @@ export default function App() {
                           <span className="rendered">{rendered.lines[item.index]}</span>
                         ) : null}
                         {openLine === item.index && readings.has(item.index) && (
-                          <span className="reading">
+                          <span className="line-note">
                             {readings.get(item.index)}
                             <cite>Genius</cite>
                           </span>

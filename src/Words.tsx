@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { Strings } from "./i18n";
 import { LyricLines, isReading, scrollToLine, useReading, type Line } from "./LyricLines";
 
@@ -24,14 +24,23 @@ export function Words({
     ? lines.reduce((f, l, i) => (l.at <= progressMs / 1000 ? i : f), -1)
     : -1;
 
-  const reading = useReading();
-  useEffect(() => {
-    if (active < 0 || isReading(reading)) return;
+  // The settle fires from a timer well after this render, so the line it goes to has
+  // to be read at the time rather than closed over here.
+  const here = useRef(active);
+  here.current = active;
+  const centre = useCallback(() => {
+    if (here.current < 0) return;
     scrollToLine(
       document.querySelector(".words"),
-      document.querySelector(`.words [data-l="${active}"]`),
+      document.querySelector(`.words [data-l="${here.current}"]`),
     );
-  }, [active, reading]);
+  }, []);
+
+  const reading = useReading(centre);
+  useEffect(() => {
+    if (active < 0 || isReading(reading)) return;
+    centre();
+  }, [active, reading, centre]);
 
   return (
     <aside className="words">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Strings } from "./i18n";
 import { Wash } from "./Wash";
 import { LyricLines, isReading, scrollToLine, useReading, type Line } from "./LyricLines";
@@ -66,15 +66,21 @@ export function Lyrics({
     ? state.lines.reduce((found, line, i) => (line.at <= seconds ? i : found), -1)
     : -1;
 
-  const reading = useReading();
-  useEffect(() => {
-    if (active < 0) return;
-    if (isReading(reading)) return;
+  const here = useRef(active);
+  here.current = active;
+  const centre = useCallback(() => {
+    if (here.current < 0) return;
     scrollToLine(
       document.querySelector(".lyric-full-body"),
-      document.querySelector(`.lyric-full [data-l="${active}"]`),
+      document.querySelector(`.lyric-full [data-l="${here.current}"]`),
     );
-  }, [active]);
+  }, []);
+
+  const reading = useReading(centre);
+  useEffect(() => {
+    if (active < 0 || isReading(reading)) return;
+    centre();
+  }, [active, reading, centre]);
 
   return (
     <div className="lyric-full" role="dialog" aria-modal="true" aria-label={t.lyricsTitle}>

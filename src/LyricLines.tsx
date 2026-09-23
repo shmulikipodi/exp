@@ -9,8 +9,8 @@ export type Line = { at: number; text: string };
  */
 export const FOCUS = 0.3;
 
-/** How long after your last scroll the words stay sharp and the song stops dragging you. */
-const READING_MS = 3000;
+/** How long after your last scroll the words stay sharp and the song keeps its hands off. */
+const READING_MS = 3500;
 
 const SCROLLERS = ".stream, .words, .lyric-full-body";
 
@@ -27,23 +27,37 @@ const SCROLLERS = ".stream, .words, .lyric-full-body";
  * Keyed to wheel and touch rather than the scroll event: the app's own smooth scrolling
  * fires scroll too, and would read as the reader having taken over.
  */
-export function useReading(): RefObject<number> {
+export function useReading(onSettle?: () => void): RefObject<number> {
   const touched = useRef(0);
+  // Kept in a ref so the listeners are attached once rather than on every render.
+  const settle = useRef(onSettle);
+  settle.current = onSettle;
 
   useEffect(() => {
     const timers = new Map<Element, number>();
+    let quiet = 0;
 
     const touch = (e: Event) => {
       const target = e.target as Element | null;
+      // "scrolling", not "reading": the explanation that sits under a single lyric
+      // line is also .reading, so putting that class on the column gave the whole
+      // column a 2px accent rule and a different padding the instant you scrolled —
+      // a bar appearing out of nowhere and every line jumping sideways with it.
       const box = target?.closest?.(SCROLLERS);
       if (!box) return;
       touched.current = Date.now();
-      box.classList.add("reading");
+      box.classList.add("scrolling");
       clearTimeout(timers.get(box));
       timers.set(
         box,
-        window.setTimeout(() => box.classList.remove("reading"), READING_MS),
+        window.setTimeout(() => box.classList.remove("scrolling"), READING_MS),
       );
+
+      // And when the scrolling stops, the record comes back to find you. Without this
+      // the column only ever re-centred on the next line to be sung, so letting go
+      // anywhere in a long instrumental left you stranded until the singing resumed.
+      clearTimeout(quiet);
+      quiet = window.setTimeout(() => settle.current?.(), READING_MS);
     };
 
     document.addEventListener("wheel", touch, { passive: true, capture: true });
@@ -52,6 +66,7 @@ export function useReading(): RefObject<number> {
       document.removeEventListener("wheel", touch, { capture: true });
       document.removeEventListener("touchmove", touch, { capture: true });
       for (const id of timers.values()) clearTimeout(id);
+      clearTimeout(quiet);
     };
   }, []);
 
@@ -70,10 +85,14 @@ export function scrollToLine(scroller: Element | null, line: Element | null) {
   // would push its first row off the top — a narrow panel wraps a lyric into three
   // rows, and the words have to be on screen before they can be in focus.
   const from = Math.max(box.height * 0.08, box.height * FOCUS - here.height / 2);
-  scroller.scrollTo({
-    top: scroller.scrollTop + (here.top - box.top) - from,
-    behavior: "smooth",
-  });
+  const top = scroller.scrollTop + (here.top - box.top) - from;
+
+  // Smooth for the step from one line to the next; instant when the line is nowhere
+  // near the screen. Animating across a whole song takes long enough that the next
+  // line arrives mid-flight, and the column ends up permanently chasing a position it
+  // never reaches — which is the words sliding off the bottom while the view trails.
+  const far = Math.abs(top - scroller.scrollTop) > box.height * 1.5;
+  scroller.scrollTo({ top, behavior: far ? "auto" : "smooth" });
 }
 
 /**
