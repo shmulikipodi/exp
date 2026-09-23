@@ -6,10 +6,18 @@ const LRCLIB = "https://lrclib.net/api/get";
 
 export type Line = { at: number; text: string };
 
-/** "[01:23.45] words" → a line with a position in seconds. */
-function parseLrc(lrc: string): Line[] {
+/**
+ * "[01:23.45] words" → a line with a position in seconds.
+ *
+ * Split on either line ending. LRCLIB serves plenty of files with CRLF, and splitting
+ * on \n alone left a carriage return on the end of every line — which JavaScript's `.`
+ * refuses to match and `$` refuses to sit in front of, so every line WITH WORDS IN IT
+ * failed the pattern and was dropped. The blank spacer lines survived, because \s* will
+ * happily swallow a carriage return, and the reader got a column of empty lines.
+ */
+export function parseLrc(lrc: string): Line[] {
   const lines: Line[] = [];
-  for (const raw of lrc.split("\n")) {
+  for (const raw of lrc.split(/\r\n|\r|\n/)) {
     const m = raw.match(/^\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]\s*(.*)$/);
     if (!m) continue;
     const at = Number(m[1]) * 60 + Number(m[2]) + Number((m[3] ?? "0").padEnd(3, "0")) / 1000;

@@ -1338,24 +1338,26 @@ body.dragging { cursor: col-resize; user-select: none; }
 .note.trivia { --edge: #d98fb0; }
 .note.lyric { --edge: #c7b06a; }
 
-/* A face for a note about a person, a sleeve for a note about another record. */
-.note.withart {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 16px;
-  align-items: start;
+/* A face for a note about a person, a sleeve for a note about another record.
+   The row keeps its height whether or not a picture ever arrives in it, so the note's
+   words sit in the same place from the moment they are drawn. */
+.note-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  margin-bottom: 8px;
 }
-.note.withart > :not(.note-art) { grid-column: 2; }
 .note-art {
-  grid-row: 1 / span 2;
-  grid-column: 1;
-  width: 56px;
-  height: 56px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
   border-radius: 3px;
   object-fit: cover;
   background: rgba(243,237,227,0.07);
 }
 .note-art.round { border-radius: 50%; }
+.note-head .kind { margin-bottom: 0; }
 
 /* The first note is what the record is known for. */
 .note.lead {
@@ -1363,7 +1365,8 @@ body.dragging { cursor: col-resize; user-select: none; }
   background: rgba(243,237,227,0.06);
 }
 .note.lead h3 { font-size: clamp(23px, 1.95vw, 30px); }
-.note.lead .note-art { width: 76px; height: 76px; }
+.note.lead .note-head { min-height: 52px; }
+.note.lead .note-art { width: 52px; height: 52px; }
 
 /* ---------- the words, with the notes standing in them ----------
    The explanation is not in a list somewhere else; it is where the thing it explains

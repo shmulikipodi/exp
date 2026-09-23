@@ -1704,7 +1704,7 @@ export default function App() {
                   return (
                   <article
                     key={`${n.title}-${i}`}
-                    className={`note ${n.kind}${lead ? " lead" : ""}${picture ? " withart" : ""}${
+                    className={`note ${n.kind}${lead ? " lead" : ""}${
                       opened === n.title ? " open" : ""
                     }${nowHere ? " here" : ""}`}
                     // Tapping a note opens it. It used to jump the track, which is a
@@ -1715,34 +1715,41 @@ export default function App() {
                       openNote(n);
                     }}
                   >
-                    {picture && (
-                      <img
-                        className={`note-art${picture.round ? " round" : ""}`}
-                        src={picture.src}
-                        alt=""
-                        title={picture.alt}
-                        loading="lazy"
-                      />
-                    )}
-                    <span className={`kind ${n.kind}`}>{t.kinds[n.kind] ?? n.kind}</span>
-                    {n.at !== null && canControl !== false && !viewing && track.durationMs > 0 && (
-                      <button
-                        className={`jump${
-                          n.atBasis === "documented" || n.atBasis === "heard" ? " sure" : ""
-                        }`}
-                        title={
-                          n.atBasis === "documented" || n.atBasis === "heard"
-                            ? t.jumpTo
-                            : t.jumpToApprox
-                        }
-                        onClick={() => {
-                          const target = n.at! * track.durationMs;
-                          run(() => seek(target), () => setProgress(target));
-                        }}
-                      >
-                        {mmss(n.at * track.durationMs)}
-                      </button>
-                    )}
+                    {/* One row, always the same height whether a picture turns up in
+                        it or not. The picture comes from the record's family, which
+                        lands seconds after the notes do — as a column of its own it
+                        moved every line of the note 72px sideways on arrival, while
+                        you were reading. */}
+                    <div className="note-head">
+                      {picture && (
+                        <img
+                          className={`note-art${picture.round ? " round" : ""}`}
+                          src={picture.src}
+                          alt=""
+                          title={picture.alt}
+                          loading="lazy"
+                        />
+                      )}
+                      <span className={`kind ${n.kind}`}>{t.kinds[n.kind] ?? n.kind}</span>
+                      {n.at !== null && canControl !== false && !viewing && track.durationMs > 0 && (
+                        <button
+                          className={`jump${
+                            n.atBasis === "documented" || n.atBasis === "heard" ? " sure" : ""
+                          }`}
+                          title={
+                            n.atBasis === "documented" || n.atBasis === "heard"
+                              ? t.jumpTo
+                              : t.jumpToApprox
+                          }
+                          onClick={() => {
+                            const target = n.at! * track.durationMs;
+                            run(() => seek(target), () => setProgress(target));
+                          }}
+                        >
+                          {mmss(n.at * track.durationMs)}
+                        </button>
+                      )}
+                    </div>
                     <h3>{n.title}</h3>
                     <p>
                       <Linked
