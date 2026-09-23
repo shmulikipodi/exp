@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MIN_NOTES, dividerWidth, grabOffset, matchReadings, matchesLang, shape, weave } from "./notes-logic";
+import { MIN_NOTES, currentLine, dividerWidth, grabOffset, matchReadings, matchesLang, shape, weave } from "./notes-logic";
 
 const note = (body: string) => ({ body });
 
@@ -270,5 +270,33 @@ describe("matchReadings", () => {
 
   it("returns nothing rather than guessing when nothing lines up", () => {
     expect(matchReadings(lines, [{ line: "a completely different song", note: "x" }]).size).toBe(0);
+  });
+});
+
+describe("currentLine", () => {
+  const lines = [{ at: 10 }, { at: 20 }, { at: 30 }];
+
+  it("gives the last line that has started", () => {
+    expect(currentLine(lines, 25)).toBe(1);
+    expect(currentLine(lines, 30)).toBe(2);
+  });
+
+  it("gives nothing before the first word", () => {
+    expect(currentLine(lines, 3)).toBe(-1);
+  });
+
+  it("holds the last line through a short tail", () => {
+    expect(currentLine(lines, 45)).toBe(2);
+  });
+
+  it("lets go once the record has plainly moved on", () => {
+    // Fade to Black's words end at 4:42 of a 6:54 recording. Treating the final line as
+    // current for those two minutes gave the column a position to keep dragging the
+    // reader back to, long after anyone was singing it.
+    expect(currentLine(lines, 60)).toBe(-1);
+  });
+
+  it("has no opinion about a record with no words", () => {
+    expect(currentLine([], 100)).toBe(-1);
   });
 });

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Strings } from "./i18n";
 import { Wash } from "./Wash";
-import { LyricLines, isReading, scrollToLine, useReading, type Line } from "./LyricLines";
+import { LyricLines, inView, isReading, scrollToLine, useReading, type Line } from "./LyricLines";
+import { currentLine } from "./notes-logic";
 import { paletteFrom, type Swatch } from "./palette";
 
 type Loaded = { found: boolean; synced: boolean; lines: Line[]; plain: string };
@@ -62,21 +63,19 @@ export function Lyrics({
   }, [onClose]);
 
   const seconds = progressMs / 1000;
-  const active = state?.synced
-    ? state.lines.reduce((found, line, i) => (line.at <= seconds ? i : found), -1)
-    : -1;
+  const active = state?.synced ? currentLine(state.lines, seconds) : -1;
 
   const here = useRef(active);
   here.current = active;
-  const centre = useCallback(() => {
+  const centre = useCallback((onlyIfLost = false) => {
     if (here.current < 0) return;
-    scrollToLine(
-      document.querySelector(".lyric-full-body"),
-      document.querySelector(`.lyric-full [data-l="${here.current}"]`),
-    );
+    const box = document.querySelector(".lyric-full-body");
+    const el = document.querySelector(`.lyric-full [data-l="${here.current}"]`);
+    if (onlyIfLost && inView(box, el)) return;
+    scrollToLine(box, el);
   }, []);
 
-  const reading = useReading(centre);
+  const reading = useReading(() => centre(true));
   useEffect(() => {
     if (active < 0 || isReading(reading)) return;
     centre();

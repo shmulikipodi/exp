@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Strings } from "./i18n";
-import { LyricLines, isReading, scrollToLine, useReading, type Line } from "./LyricLines";
+import { LyricLines, inView, isReading, scrollToLine, useReading, type Line } from "./LyricLines";
+import { currentLine } from "./notes-logic";
 
 /**
  * The words on their own, for when you would rather read them beside the notes than
@@ -20,23 +21,21 @@ export function Words({
   progressMs: number;
   onSeek: (ms: number) => void;
 }) {
-  const active = lines
-    ? lines.reduce((f, l, i) => (l.at <= progressMs / 1000 ? i : f), -1)
-    : -1;
+  const active = currentLine(lines ?? [], progressMs / 1000);
 
   // The settle fires from a timer well after this render, so the line it goes to has
   // to be read at the time rather than closed over here.
   const here = useRef(active);
   here.current = active;
-  const centre = useCallback(() => {
+  const centre = useCallback((onlyIfLost = false) => {
     if (here.current < 0) return;
-    scrollToLine(
-      document.querySelector(".words"),
-      document.querySelector(`.words [data-l="${here.current}"]`),
-    );
+    const box = document.querySelector(".words");
+    const el = document.querySelector(`.words [data-l="${here.current}"]`);
+    if (onlyIfLost && inView(box, el)) return;
+    scrollToLine(box, el);
   }, []);
 
-  const reading = useReading(centre);
+  const reading = useReading(() => centre(true));
   useEffect(() => {
     if (active < 0 || isReading(reading)) return;
     centre();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FOCUS, scrollToLine } from "./LyricLines";
+import { FOCUS, inView, scrollToLine } from "./LyricLines";
 
 /** A scroller and a line, with only the four things scrollToLine actually touches. */
 function stage(opts: { height: number; scrollTop: number; lineTop: number; lineHeight?: number }) {
@@ -63,5 +63,31 @@ describe("scrollToLine", () => {
     scrollToLine(scroller, null);
     scrollToLine(null, null);
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("inView", () => {
+  const box = (height: number) =>
+    ({ getBoundingClientRect: () => ({ top: 0, height }) }) as unknown as Element;
+  const at = (top: number, height = 30) =>
+    ({ getBoundingClientRect: () => ({ top, bottom: top + height, height }) }) as unknown as Element;
+
+  it("says yes for a line sitting comfortably on screen", () => {
+    expect(inView(box(800), at(300))).toBe(true);
+  });
+
+  it("says no for a line above the top of the column", () => {
+    expect(inView(box(800), at(-100))).toBe(false);
+  });
+
+  it("says no for a line down at the bottom edge", () => {
+    // 0.8 of the way down is the limit: a line below that is on its way out, and the
+    // reader is better served by being brought back to it than left chasing it.
+    expect(inView(box(800), at(700))).toBe(false);
+  });
+
+  it("says no when there is nothing to look for", () => {
+    expect(inView(box(800), null)).toBe(false);
+    expect(inView(null, at(300))).toBe(false);
   });
 });

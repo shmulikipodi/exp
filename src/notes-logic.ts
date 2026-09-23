@@ -256,3 +256,30 @@ export function matchReadings(lines: { text: string }[], readings: Reading[]): M
   }
   return found;
 }
+
+// ---------------------------------------------------------------------------
+// Which line is being sung, if any.
+
+/**
+ * How long after the last word the app keeps treating that word as the current one.
+ *
+ * Synced lyrics stop where the singing stops. Fade to Black's last line lands at 4:42
+ * of a 6:54 recording, so for the final two minutes the "current" line was one that had
+ * finished being sung long ago — and the column kept hauling the reader down to it.
+ */
+const OUTRO_S = 25;
+
+/**
+ * The line being sung, or -1 when nothing is.
+ *
+ * Nothing is being sung during an intro, during a long instrumental at the end, and on
+ * a record with no words at all. Pinning to the nearest line in those stretches is
+ * worse than admitting there isn't one: it gives the app a position to insist on while
+ * the reader is trying to read something else.
+ */
+export function currentLine(lines: { at: number }[], seconds: number): number {
+  if (lines.length === 0) return -1;
+  const last = lines[lines.length - 1];
+  if (seconds > last.at + OUTRO_S) return -1;
+  return lines.reduce((found, line, i) => (line.at <= seconds ? i : found), -1);
+}

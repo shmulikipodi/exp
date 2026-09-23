@@ -77,6 +77,20 @@ export function useReading(onSettle?: () => void): RefObject<number> {
 export const isReading = (touched: RefObject<number>) =>
   Date.now() - touched.current < READING_MS;
 
+/**
+ * Is the line already somewhere the reader can see it?
+ *
+ * Used by the settle, not by ordinary tracking. After a scroll the column comes back to
+ * the current line — but if that line is sitting in plain view already, coming back to
+ * it means moving the page under someone who was reading it.
+ */
+export function inView(scroller: Element | null, line: Element | null): boolean {
+  if (!scroller || !line) return false;
+  const box = scroller.getBoundingClientRect();
+  const here = line.getBoundingClientRect();
+  return here.top >= box.top + box.height * 0.05 && here.bottom <= box.top + box.height * 0.8;
+}
+
 export function scrollToLine(scroller: Element | null, line: Element | null) {
   if (!scroller || !line) return;
   const box = scroller.getBoundingClientRect();

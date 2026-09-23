@@ -24,7 +24,7 @@ import {
 } from "./spotify";
 import { STRINGS, storedLang, storeLang, type Lang } from "./i18n";
 import { accentFrom, paletteFrom, type Swatch } from "./palette";
-import { dividerWidth, grabOffset, matchReadings, matchesLang, shape, weave } from "./notes-logic";
+import { currentLine, dividerWidth, grabOffset, matchReadings, matchesLang, shape, weave } from "./notes-logic";
 import { Keys, liveKeys } from "./Keys";
 import { onPlayer, startPlayer, type PlayerState } from "./player";
 import { History } from "./History";
@@ -36,7 +36,7 @@ import { Lineage } from "./Lineage";
 import { useLyrics, useTranslation } from "./useLyrics";
 import { pictureFor, useTree } from "./useTree";
 import { Words } from "./Words";
-import { isReading, scrollToLine, useReading } from "./LyricLines";
+import { inView, isReading, scrollToLine, useReading } from "./LyricLines";
 import { Settings } from "./Settings";
 import {
   type Entry,
@@ -782,9 +782,7 @@ export default function App() {
   );
 
   // Which line is being sung, for the same focus the lyric panel used to give it.
-  const sungNow = words.length
-    ? words.reduce((f, l, i) => (l.at <= progress / 1000 ? i : f), -1)
-    : -1;
+  const sungNow = currentLine(words, progress / 1000);
   // Somebody's reading of a particular line, for the lines that have one. Free: it was
   // downloaded with the record's family and only ever handed to the model.
   const readings = useMemo(
@@ -805,15 +803,19 @@ export default function App() {
   );
 
   /** Put the line being sung back where it belongs, wherever the column has got to. */
-  const centreOnSung = useCallback(() => {
+  const centreOnSung = useCallback((onlyIfLost = false) => {
     const line = latest.current.sungNow;
     if (line < 0) return;
-    scrollToLine(streamRef.current, document.querySelector(`.stream [data-l="${line}"]`));
+    const el = document.querySelector(`.stream [data-l="${line}"]`);
+    // Settling back onto a line that never left the screen just moves the page under
+    // somebody who was reading it.
+    if (onlyIfLost && inView(streamRef.current, el)) return;
+    scrollToLine(streamRef.current, el);
   }, []);
 
   // Hands off while the reader is moving the column, and back to the current line a
   // few seconds after they stop.
-  const reading = useReading(centreOnSung);
+  const reading = useReading(() => centreOnSung(true));
   useEffect(() => {
     if (sungNow < 0 || isReading(reading)) return;
     centreOnSung();
@@ -2036,8 +2038,8 @@ export default function App() {
             <div className="pb-track">
               {track.art && <img src={track.art} alt="" crossOrigin="anonymous" />}
               <span>
-                <b>{track.title}</b>
-                <span>{track.artists.join(", ")}</span>
+                <b title={track.title}>{track.title}</b>
+                <span title={track.artists.join(", ")}>{track.artists.join(", ")}</span>
               </span>
             </div>
 
